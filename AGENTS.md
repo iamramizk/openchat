@@ -34,7 +34,6 @@ Requires **Bun ≥ 1.2** (native FFI packaging in the bundler was fixed in 1.2; 
 
 ```bash
 bun run build:mac          # dist/openchat-darwin-arm64  (macOS Apple Silicon)
-bun run build:mac-x64      # dist/openchat-darwin-x64    (macOS Intel)
 bun run build:linux-x64    # dist/openchat-linux-x64     (Linux x64)
 bun run build:linux-arm64  # dist/openchat-linux-arm64   (Linux ARM)
 ```
@@ -48,8 +47,10 @@ embedded in the binary. Subsequent launches read the user's copies only.
 
 **Linux cross-compilation from macOS is not supported** — opentui's native FFI bindings
 must be compiled on the target OS. The CI release workflow (`.github/workflows/release.yml`)
-handles this automatically using native runners for each platform (macos-14, macos-13,
-ubuntu-22.04, ubuntu-24.04-arm). To cut a release, push a `v*.*.*` tag.
+handles this automatically using native runners for each platform (macos-14,
+ubuntu-22.04, ubuntu-24.04-arm). macOS x64 (Intel, macos-13) is not supported —
+queue times for that runner are prohibitively slow; Apple Silicon covers all
+current Mac hardware. To cut a release, push a `v*.*.*` tag.
 
 ### Releasing
 

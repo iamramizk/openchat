@@ -11,12 +11,19 @@ on:
 permissions:
   contents: write   # required to create GitHub Releases and upload assets
 
+# Force all JS actions onto Node.js 24 to silence Node 20 deprecation warnings.
+# Becomes the runner default on 2026-06-16; this opt-in makes it explicit now.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  #  Build — matrix of 4 native runners, one binary per target.
+  #  Build — matrix of 3 native runners, one binary per target.
   #
   #  Cross-compilation is NOT used: opentui's renderer relies on native FFI
   #  bindings that must be built on the target platform.
+  #  macOS is Apple Silicon only (arm64); Intel Mac (x64) dropped — macos-13
+  #  runner queue times are prohibitively slow.
   # ─────────────────────────────────────────────────────────────────────────────
   build:
     name: Build (${{ matrix.name }})
@@ -29,11 +36,6 @@ jobs:
             runner: macos-14          # Apple Silicon (M1+)
             os:     darwin
             arch:   arm64
-
-          - name:   macOS x64
-            runner: macos-13          # Intel
-            os:     darwin
-            arch:   x64
 
           - name:   Linux x64
             runner: ubuntu-22.04
@@ -89,7 +91,7 @@ jobs:
           retention-days: 1   # only needed for the release job below
 
   # ─────────────────────────────────────────────────────────────────────────────
-  #  Release — collects all 4 artifacts, merges checksums, creates GitHub Release
+  #  Release — collects all 3 artifacts, merges checksums, creates GitHub Release
   # ─────────────────────────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
@@ -125,7 +127,6 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             dist/openchat-darwin-arm64
-            dist/openchat-darwin-x64
             dist/openchat-linux-x64
             dist/openchat-linux-arm64
             dist/checksums.txt

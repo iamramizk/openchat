@@ -72,7 +72,7 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 
 | Platform | Architecture |
 |----------|-------------|
-| macOS | arm64 (Apple Silicon) · x64 (Intel) |
+| macOS | arm64 (Apple Silicon) |
 | Linux | x64 · arm64 |
 | Windows | ❌ Not supported — use [WSL](https://learn.microsoft.com/en-us/windows/wsl/) |
 
@@ -118,7 +118,6 @@ Build a local binary:
 
 ```bash
 bun run build:mac        # dist/openchat-darwin-arm64
-bun run build:mac-x64    # dist/openchat-darwin-x64
 bun run build:linux-x64  # dist/openchat-linux-x64
 ```
 
