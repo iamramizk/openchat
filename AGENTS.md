@@ -138,7 +138,7 @@ Three-region vertical layout:
 └──────────────────────────────────┘
 ```
 
-- **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting.
+- **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting. The vertical scrollbar is fully hidden from layout (no column gutter reserved) via a mount-time `verticalScrollBar.visible = false`; wheel and keyboard scrolling remain functional.
 - **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar.
 - **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`shift+tab persona · ctrl+c exit`).
   - When no model is configured: shows `no model configured` in blue + `/connect`/`/models` guidance.
@@ -158,7 +158,7 @@ Three-region vertical layout:
 | Command    | Action                                                                                                                                                                                                                   |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `/connect` | Opens a two-step modal: (1) pick a provider from the registry, (2) enter your API key. Saves to `auth.json` immediately. Already-saved keys are shown with a `✓` indicator. Footer shows the `auth.json` path.          |
-| `/models`  | Opens a modal listing all entries from `models[]` in `config.yaml`. Keys: **enter** — switch active model; **a** — add a new model (provider → model-id → display name, writes to `config.yaml`); **d** — delete highlighted model (confirm with `d`/`y`); **f** — set highlighted model as the boot default (★). Entries missing a key are marked `(no key — run /connect)`. Footer shows the `config.yaml` path. |
+| `/models`  | Opens a modal listing all entries from `models[]` in `config.yaml`. Keys: **enter** — switch active model; **a** — add a new model (provider → model-id → display name, writes to `config.yaml`); **d** — delete highlighted model (confirm with `d`/`y`); **f** — set highlighted model as the boot default (★); **r** — rename the highlighted model's display name. Entries missing a key are marked `(no key — run /connect)`. Footer shows the `config.yaml` path. |
 
 Typing `/` or a partial command (e.g. `/m`, `/co`) in the input bar shows a floating autosuggestion list above the input. Partial prefix submission works: `/mod`+Enter opens `/models`, `/con`+Enter opens `/connect`.
 

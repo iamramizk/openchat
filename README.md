@@ -156,7 +156,7 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 | Command | Action |
 |---------|--------|
 | `/connect` | Opens a two-step modal: pick a provider → enter your API key. Already-saved keys show a `✓` indicator. Saves to `auth.json` immediately. |
-| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete highlighted model · `f` — set as default (★) |
+| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete highlighted model · `f` — set as default (★) · `r` — rename display name |
 
 **Binary subcommands (run from your terminal):**
 

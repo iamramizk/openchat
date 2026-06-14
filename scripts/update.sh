@@ -19,6 +19,7 @@ GREEN=$'\033[32m'
 RED=$'\033[31m'
 BOLD=$'\033[1m'
 RESET=$'\033[0m'
+tmpdir=""
 
 print_header() {
   printf '\n'
@@ -130,9 +131,8 @@ main() {
   local asset="openchat-${platform}"
   local base_url="https://github.com/${REPO}/releases/download/${latest_tag}"
 
-  local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap 'rm -rf "${tmpdir:-}"' EXIT
 
   printf '  Downloading %s...\n' "$asset"
   if ! curl -fSL --progress-bar "${base_url}/${asset}" -o "${tmpdir}/${asset}" 2>&1; then

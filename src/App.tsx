@@ -340,6 +340,13 @@ export function App({
     showToast(`✓ "${name}" set as default model`)
   }
 
+  function handleRenameModel(index: number, newName: string) {
+    const old = cfg.models[index]?.name ?? "?"
+    const nextModels = cfg.models.map((m, i) => (i === index ? { ...m, name: newName } : m))
+    persistConfig({ ...cfg, models: nextModels })
+    showToast(`✓ Renamed "${old}" → "${newName}"`)
+  }
+
   // -------------------------------------------------------------------------
   // Determine active model name for status bar
   // -------------------------------------------------------------------------
@@ -418,6 +425,7 @@ export function App({
           onAddModel={handleAddModel}
           onDeleteModel={handleDeleteModel}
           onSetDefault={handleSetDefault}
+          onRenameModel={handleRenameModel}
           onClose={() => setModal(null)}
         />
       )}

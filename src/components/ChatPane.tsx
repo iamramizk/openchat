@@ -1,4 +1,5 @@
-import type { SyntaxStyle, TreeSitterClient } from "@opentui/core"
+import { useEffect, useRef } from "react"
+import type { SyntaxStyle, TreeSitterClient, ScrollBoxRenderable } from "@opentui/core"
 import { colors } from "../theme.ts"
 import type { ChatMessage } from "../types.ts"
 import { Message } from "./Message.tsx"
@@ -28,8 +29,18 @@ function EmptyState() {
 }
 
 export function ChatPane({ messages, syntaxStyle, treeSitterClient }: Props) {
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+
+  // Remove the vertical scrollbar from layout entirely (sets yogaNode display:none,
+  // sticky via _manualVisibility so recalculateVisibility() won't re-show it).
+  // Scrolling (wheel/keyboard) still works — it's driven by the scrollbox itself.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.verticalScrollBar.visible = false
+  }, [])
+
   return (
     <scrollbox
+      ref={scrollRef as React.Ref<any>}
       stickyScroll={true}
       stickyStart="bottom"
       style={{

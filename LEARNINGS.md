@@ -107,6 +107,14 @@ This file tracks critical architectural decisions, non-obvious technical discove
 
 ---
 
+### [2026-06-14] opentui ScrollBar API does NOT support rounding, sub-1-column thinness, or idle auto-hide
+
+- **Context:** Styling the chat-pane scrollbar to be discrete ("only appear when scrolling, rounded, thinner").
+- **Discovery/Solution:** `ScrollBarOptions` / `SliderOptions` support only: `trackOptions.foregroundColor` (thumb colour), `trackOptions.backgroundColor` (track colour), and `showArrows` (bool). The thumb is always rendered as block characters (`█`, `▌`, `▐`); there are no cap/rounding or thickness options. Native auto-hide is limited to "hide when content fits viewport" (`recalculateVisibility()` sets `visible = sizeRatio < 1`); there is no idle-timeout auto-hide event. Rounding and thinness are not achievable without patching the opentui renderer.
+- **Resolution — full removal:** The scrollbar (and its 1-column layout gutter) can be completely eliminated via a ref + mount effect: `scrollRef.current.verticalScrollBar.visible = false`. The base `Renderable.set visible` setter calls `yogaNode.setDisplay(Display.None)`, removing it from flex layout; `ScrollBarRenderable.set visible` additionally sets `_manualVisibility = true`, so `recalculateVisibility()` is a permanent no-op and it won't re-appear on overflow. Implemented in `src/components/ChatPane.tsx`. **Note:** passing `verticalScrollbarOptions={{ visible: false }}` in JSX is NOT sufficient — the ctor leaves `_manualVisibility = false`, so the first content-overflow call re-shows it.
+
+---
+
 ### [2026-06-14] Argv dispatch + embedded shell scripts for `openchat update` / `openchat uninstall`
 
 - **Context:** Adding `openchat update` and `openchat uninstall` subcommands to the compiled binary. The binary had no argv handling at all — `index.tsx` booted the TUI immediately on import.

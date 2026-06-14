@@ -21,6 +21,7 @@ YELLOW=$'\033[33m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
 RESET=$'\033[0m'
+tmpdir=""
 
 print_header() {
   printf '\n'
@@ -85,9 +86,8 @@ main() {
   printf '  Install dir: %s\n\n' "$INSTALL_DIR"
 
   # ── Download ────────────────────────────────────────────────────────────────
-  local tmpdir
   tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap 'rm -rf "${tmpdir:-}"' EXIT
 
   printf '  Downloading %s...\n' "$asset"
   if ! curl -fSL --progress-bar "${base_url}/${asset}" -o "${tmpdir}/${asset}" 2>&1; then

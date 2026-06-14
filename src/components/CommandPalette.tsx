@@ -21,6 +21,7 @@ interface ModelsModalProps {
   onAddModel: (entry: ModelEntry) => void
   onDeleteModel: (index: number) => void
   onSetDefault: (index: number) => void
+  onRenameModel: (index: number, newName: string) => void
   onClose: () => void
 }
 
@@ -30,6 +31,7 @@ type ModelsMode =
   | "add-model"
   | "add-name"
   | "confirm-delete"
+  | "rename"
 
 export function ModelsModal({
   models,
@@ -41,6 +43,7 @@ export function ModelsModal({
   onAddModel,
   onDeleteModel,
   onSetDefault,
+  onRenameModel,
   onClose,
 }: ModelsModalProps) {
   const { width } = useTerminalDimensions()
@@ -60,6 +63,7 @@ export function ModelsModal({
       if (key.name === "a") { setMode("add-provider"); return }
       if (key.name === "d" && models.length > 0) { setMode("confirm-delete"); return }
       if (key.name === "f" && models.length > 0) { onSetDefault(highlightIndex); return }
+      if (key.name === "r" && models.length > 0) { setMode("rename"); return }
     }
 
     if (mode === "confirm-delete") {
@@ -81,6 +85,10 @@ export function ModelsModal({
         else setMode("list")
         return
       }
+    }
+
+    if (mode === "rename") {
+      if (key.name === "escape") { setMode("list"); return }
     }
   })
 
@@ -280,6 +288,64 @@ export function ModelsModal({
     )
   }
 
+  // ---- rename ----
+  if (mode === "rename") {
+    const currentName = models[highlightIndex]?.name ?? ""
+    return (
+      <Overlay>
+        <ModalShell
+          title="/models · rename — new name · esc back"
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={configFile()}
+        >
+          <box
+            style={{
+              flexDirection: "column",
+              paddingLeft: 2,
+              paddingRight: 2,
+              paddingTop: 1,
+              paddingBottom: 1,
+              gap: 1,
+              width: innerW,
+            }}
+          >
+            <text fg={colors.textFaint}>New display name for "{currentName}":</text>
+            <box
+              style={{
+                flexDirection: "row",
+                border: true,
+                borderStyle: "rounded",
+                borderColor: colors.border,
+                paddingLeft: 1,
+                paddingRight: 1,
+              }}
+            >
+              <textarea
+                ref={nameRef as React.Ref<any>}
+                height={1}
+                style={{ flexGrow: 1 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                placeholder={currentName}
+                focused
+                keyBindings={[{ name: "return", action: "submit" }]}
+                onSubmit={() => {
+                  const raw = (nameRef.current?.plainText ?? "").trim()
+                  if (raw) {
+                    onRenameModel(highlightIndex, raw)
+                  }
+                  setMode("list")
+                }}
+              />
+            </box>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
   // ---- confirm delete ----
   if (mode === "confirm-delete") {
     const target = models[highlightIndex]?.name ?? "?"
@@ -316,7 +382,7 @@ export function ModelsModal({
   return (
     <Overlay>
       <ModalShell
-        title="/models  ↑↓ navigate · enter select · a add · d delete · f set-default · esc cancel"
+        title="/models  ↑↓ navigate · enter select · a add · d delete · f default · r rename · esc cancel"
         innerWidth={innerW}
         bgColor={bgColor}
         footer={configFile()}
