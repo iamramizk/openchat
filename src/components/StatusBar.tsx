@@ -1,3 +1,4 @@
+import { useTerminalDimensions } from "@opentui/react"
 import { colors } from "../theme.ts"
 import type { SessionStats, ModelInfo, ModelEntry, ActiveConnection } from "../types.ts"
 
@@ -42,12 +43,24 @@ export function StatusBar({
   modelInfo: _modelInfo,
   isStreaming,
 }: Props) {
+  const { width } = useTerminalDimensions()
   const personaTitle = persona.charAt(0).toUpperCase() + persona.slice(1)
   const ctx = formatContext(stats)
   const cost = formatCost(stats.cumulativeCost)
   const statusDot = isStreaming ? "●" : "○"
   const statusLabel = isStreaming ? "streaming" : "ready"
   const statusColor = isStreaming ? colors.greenBright : colors.textFaint
+
+  // Responsive hint: hide "shift+tab persona · ctrl+c exit" (and its │) on narrow terminals.
+  // Each divider (│) occupies: gap(2) + char(1) + gap(2) = 5 cols; outer padding = 4 cols.
+  // We estimate total required width and hide the hint if the terminal is too narrow.
+  const HINT = "shift+tab persona · ctrl+c exit"
+  const modelDisplay = modelEntry?.name ?? ""
+  const leftW = modelDisplay.length + personaTitle.length + 5 // model │ persona
+  const statusStr = `${statusDot} ${statusLabel}`
+  const rightCoreW = statusStr.length + ctx.length + cost.length + 2 * 5 // 2 dividers
+  const hintW = HINT.length + 5 // preceding │ + hint text
+  const showHint = width >= 4 + leftW + rightCoreW + hintW + 1
 
   // No model configured
   if (!modelEntry || !connection) {
@@ -69,8 +82,6 @@ export function StatusBar({
       </box>
     )
   }
-
-  const modelDisplay = modelEntry.name
 
   return (
     <box
@@ -97,8 +108,8 @@ export function StatusBar({
         <text fg={colors.textMuted}>{ctx}</text>
         <text fg={colors.textFaint}>│</text>
         <text fg={costColor}>{cost}</text>
-        <text fg={colors.textFaint}>│</text>
-        <text fg={colors.textFaint}>shift+tab persona · ctrl+c exit</text>
+        {showHint && <text fg={colors.textFaint}>│</text>}
+        {showHint && <text fg={colors.textFaint}>{HINT}</text>}
       </box>
     </box>
   )
