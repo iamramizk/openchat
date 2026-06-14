@@ -23,3 +23,9 @@ declare module "*.js" {
   const content: string
   export default content
 }
+
+/** `with { type: "text" }` — returns a shell script as a string. */
+declare module "*.sh" {
+  const content: string
+  export default content
+}

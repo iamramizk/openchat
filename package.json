@@ -8,7 +8,10 @@
   "scripts": {
     "start": "bun run src/index.tsx",
     "build:worker": "bun build src/bun-worker-shim.ts --target=bun --outdir src/worker --asset-naming=[name].[ext]",
-    "build:mac": "bun build src/index.tsx --compile --outfile dist/openchat"
+    "build:mac": "bun build src/index.tsx --compile --outfile dist/openchat-darwin-arm64",
+    "build:mac-x64": "bun build src/index.tsx --compile --outfile dist/openchat-darwin-x64",
+    "build:linux-x64": "bun build src/index.tsx --compile --outfile dist/openchat-linux-x64",
+    "build:linux-arm64": "bun build src/index.tsx --compile --outfile dist/openchat-linux-arm64"
   },
   "dependencies": {
     "@opentui/core": "latest",

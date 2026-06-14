@@ -1,0 +1,131 @@
+name: Release
+
+# Triggered by pushing a semver tag (e.g. git tag v0.1.0 && git push --tags)
+# or manually from the Actions tab.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required to create GitHub Releases and upload assets
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  Build — matrix of 4 native runners, one binary per target.
+  #
+  #  Cross-compilation is NOT used: opentui's renderer relies on native FFI
+  #  bindings that must be built on the target platform.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name:   macOS arm64
+            runner: macos-14          # Apple Silicon (M1+)
+            os:     darwin
+            arch:   arm64
+
+          - name:   macOS x64
+            runner: macos-13          # Intel
+            os:     darwin
+            arch:   x64
+
+          - name:   Linux x64
+            runner: ubuntu-22.04
+            os:     linux
+            arch:   x64
+
+          - name:   Linux arm64
+            runner: ubuntu-24.04-arm  # GitHub-hosted ARM runner (free for public repos)
+            os:     linux
+            arch:   arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.x'   # must be ≥ 1.2 for native FFI packaging
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          bun build src/index.tsx \
+            --compile \
+            --outfile dist/openchat-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Compute SHA256 checksum (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          shasum -a 256 openchat-${{ matrix.os }}-${{ matrix.arch }} \
+            > openchat-${{ matrix.os }}-${{ matrix.arch }}.sha256
+
+      - name: Compute SHA256 checksum (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd dist
+          sha256sum openchat-${{ matrix.os }}-${{ matrix.arch }} \
+            > openchat-${{ matrix.os }}-${{ matrix.arch }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openchat-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/openchat-${{ matrix.os }}-${{ matrix.arch }}
+            dist/openchat-${{ matrix.os }}-${{ matrix.arch }}.sha256
+          if-no-files-found: error
+          retention-days: 1   # only needed for the release job below
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  Release — collects all 4 artifacts, merges checksums, creates GitHub Release
+  # ─────────────────────────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false   # keeps each matrix artifact in its own subdir
+
+      - name: Collect binaries and build checksums.txt
+        run: |
+          mkdir -p dist
+          # Flatten artifacts into dist/
+          find artifacts -type f -exec cp {} dist/ \;
+          # Merge per-file .sha256 files into one checksums.txt
+          cat dist/*.sha256 > dist/checksums.txt
+          echo "=== Release assets ==="
+          ls -lh dist/
+          echo ""
+          echo "=== checksums.txt ==="
+          cat dist/checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/openchat-darwin-arm64
+            dist/openchat-darwin-x64
+            dist/openchat-linux-x64
+            dist/openchat-linux-arm64
+            dist/checksums.txt

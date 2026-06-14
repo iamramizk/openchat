@@ -33,7 +33,10 @@ Press `Ctrl+C` to exit.
 Requires **Bun ≥ 1.2** (native FFI packaging in the bundler was fixed in 1.2; 1.1.x generates invalid output for the opentui dylib wrapper).
 
 ```bash
-bun run build:mac     # produces dist/openchat  (macOS arm64 native, ~61MB)
+bun run build:mac          # dist/openchat-darwin-arm64  (macOS Apple Silicon)
+bun run build:mac-x64      # dist/openchat-darwin-x64    (macOS Intel)
+bun run build:linux-x64    # dist/openchat-linux-x64     (Linux x64)
+bun run build:linux-arm64  # dist/openchat-linux-arm64   (Linux ARM)
 ```
 
 The binary is fully self-contained: no Bun installation required on the target machine.
@@ -43,9 +46,19 @@ The binary is fully self-contained: no Bun installation required on the target m
 `~/.config/openchat/config.yaml` and all persona prompts are seeded from assets
 embedded in the binary. Subsequent launches read the user's copies only.
 
-**Linux:** cross-compilation from macOS is not yet supported (requires native Linux
-runners or Docker with a Bun Linux image). Add a `--target=bun-linux-x64` variant
-after confirming opentui Linux packages are installed.
+**Linux cross-compilation from macOS is not supported** — opentui's native FFI bindings
+must be compiled on the target OS. The CI release workflow (`.github/workflows/release.yml`)
+handles this automatically using native runners for each platform (macos-14, macos-13,
+ubuntu-22.04, ubuntu-24.04-arm). To cut a release, push a `v*.*.*` tag.
+
+### Releasing
+
+```bash
+git tag v0.1.0 && git push --tags   # triggers .github/workflows/release.yml
+```
+
+This publishes a GitHub Release with 4 native binaries and a `checksums.txt` file.
+The version tag must match `package.json` `version` (without the leading `v`).
 
 ## Config & Secrets Locations
 
@@ -183,7 +196,15 @@ prompts/                # bundled seed — copied to ~/.config/openchat/prompts/
   1-hacker.md           # Kali Linux & Cybersecurity Researcher
   2-developer.md        # Senior Software Engineer & Architect
   3-writer.md           # Copywriter & Editor
+scripts/                # standalone shell scripts; also embedded in the binary via bundled-assets.ts
+  install.sh            # curl-bootstrap installer: detects OS/arch, downloads binary, verifies SHA256, installs to ~/.local/bin
+  update.sh             # checks GitHub releases API, downloads newer binary if available, atomically replaces existing
+  uninstall.sh          # lists all created paths (warns about auth.json API keys), prompts [y/N], removes
 config.example.yaml     # canonical example config (no secrets); also cloned verbatim as the first-run seed
+.github/
+  workflows/
+    release.yml         # tag-triggered CI: builds all 4 native binaries + checksums.txt, publishes GitHub Release
+  assets/               # logo (dark + light) and screenshots for README
 ```
 
 ## Knowledge Handoff & Memory

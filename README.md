@@ -68,14 +68,44 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 
 ---
 
-## Requirements
+## Supported Platforms
 
-- **[Bun](https://bun.sh) ≥ 1.2** — the renderer uses native FFI bindings that require Bun's runtime
-- An API key for at least one supported provider (OpenRouter, Groq, or OpenAI)
+| Platform | Architecture |
+|----------|-------------|
+| macOS | arm64 (Apple Silicon) · x64 (Intel) |
+| Linux | x64 · arm64 |
+| Windows | ❌ Not supported — use [WSL](https://learn.microsoft.com/en-us/windows/wsl/) |
 
 ---
 
 ## Installation
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iamramizk/openchat/main/scripts/install.sh | bash
+```
+
+The installer detects your OS and architecture, downloads the right binary, verifies its SHA256 checksum, and places it in `~/.local/bin`. If that directory isn't on your `$PATH` yet, the installer prints the exact line to add.
+
+> **Custom install dir:** `OPENCHAT_INSTALL_DIR=/usr/local/bin bash install.sh`
+
+On first launch, openchat seeds your config directory with a default `config.yaml` and persona prompt files — no manual setup needed.
+
+---
+
+## Updating & Uninstalling
+
+```bash
+openchat update       # download and install the latest release
+openchat uninstall    # remove the binary and all config/data (prompts for confirmation)
+```
+
+Both commands work from the binary itself — no curl needed after initial install.
+
+---
+
+## Build from Source
+
+Requires **[Bun](https://bun.sh) ≥ 1.2** and an API key for at least one provider.
 
 ```bash
 git clone https://github.com/iamramizk/openchat.git
@@ -84,7 +114,13 @@ bun install
 bun run start
 ```
 
-On first launch, openchat seeds your config directory with a default `config.yaml` and persona prompt files — no manual setup needed.
+Build a local binary:
+
+```bash
+bun run build:mac        # dist/openchat-darwin-arm64
+bun run build:mac-x64    # dist/openchat-darwin-x64
+bun run build:linux-x64  # dist/openchat-linux-x64
+```
 
 ---
 
@@ -116,10 +152,21 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 
 ## Commands
 
+**In-TUI slash commands:**
+
 | Command | Action |
 |---------|--------|
 | `/connect` | Opens a two-step modal: pick a provider → enter your API key. Already-saved keys show a `✓` indicator. Saves to `auth.json` immediately. |
 | `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete highlighted model · `f` — set as default (★) |
+
+**Binary subcommands (run from your terminal):**
+
+| Command | Action |
+|---------|--------|
+| `openchat update` | Download and install the latest release; shows old → new version |
+| `openchat uninstall` | Lists all files to remove, warns about API keys, asks for confirmation |
+| `openchat --version` | Print installed version and exit |
+| `openchat --help` | Show usage and exit |
 
 **Keyboard shortcuts:**
 

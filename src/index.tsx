@@ -5,12 +5,64 @@ import { loadAuth } from "./auth.ts"
 import { loadPersonas } from "./personas.ts"
 import { EXTRA_PARSERS } from "./parsers.ts"
 import { ensureWorker } from "./paths.ts"
+import { UPDATE_SH, UNINSTALL_SH } from "./bundled-assets.ts"
 import { App } from "./App.tsx"
+import { writeFileSync, unlinkSync } from "fs"
+import { tmpdir } from "os"
+import pkg from "../package.json"
 
 // The wasm file embedded alongside the pre-built worker bundle.
 // `{ type: "file" }` embeds this asset in the binary's bunfs and returns its
 // bunfs path at runtime — or the real filesystem path in `bun run` mode.
 import wasmSourcePath from "./worker/tree-sitter.wasm" with { type: "file" }
+
+// ---------------------------------------------------------------------------
+// Argv dispatcher — handle subcommands before the TUI boots so the renderer
+// is never initialised for these lightweight commands.
+//
+// In a compiled binary, process.execPath is the binary itself.
+// In `bun run src/index.tsx`, process.execPath is Bun — update/uninstall are
+// binary-only operations and will fall back to `command -v openchat` in that case.
+// ---------------------------------------------------------------------------
+
+const _cmd = process.argv[2]
+
+if (_cmd === "--version" || _cmd === "-v") {
+  console.log(pkg.version)
+  process.exit(0)
+}
+
+if (_cmd === "--help" || _cmd === "-h") {
+  console.log(
+    `openchat v${pkg.version}\n` +
+    `\nUsage: openchat [command]\n` +
+    `\nCommands:\n` +
+    `  (none)       Launch the chat TUI\n` +
+    `  update       Update openchat to the latest release\n` +
+    `  uninstall    Remove openchat and all its config/data\n` +
+    `  --version    Print version and exit\n` +
+    `  --help       Show this help\n`
+  )
+  process.exit(0)
+}
+
+if (_cmd === "update" || _cmd === "uninstall") {
+  const script = _cmd === "update" ? UPDATE_SH : UNINSTALL_SH
+  const tmp = `${tmpdir()}/openchat-${_cmd}-${Date.now()}.sh`
+  writeFileSync(tmp, script, { mode: 0o700 })
+  const result = Bun.spawnSync(["bash", tmp], {
+    env: {
+      ...process.env,
+      OPENCHAT_BIN: process.execPath,
+      OPENCHAT_VERSION: pkg.version,
+    },
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  try { unlinkSync(tmp) } catch { /* ignore */ }
+  process.exit(result.exitCode ?? 0)
+}
 
 // ---------------------------------------------------------------------------
 // Boot — config and personas are loaded from user config dir.
