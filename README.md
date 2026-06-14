@@ -22,11 +22,11 @@
 
 ## Why openchat?
 
-Tools like **opencode** and **Claude Code** are excellent — but they inject massive system prompts and agentic guardrails before you type a single character. For a quick question, that's hundreds of wasted tokens and unnecessary overhead.
+Tools like **opencode** and **Claude Code** are excellent — but they inject massive system prompts and agentic guardrails before you type a single character. For a quick question, that's thousands of wasted tokens and unnecessary overhead.
 
 **Ollama** is great for local models, but its TUI renders responses as plain text — no markdown, no syntax highlighting, no colour. Reading code in it is painful.
 
-**openchat** fills the gap: a minimal, fast terminal chat interface that connects to any OpenAI-compatible provider, streams token-by-token, and renders responses beautifully with full syntax highlighting. No agents, no file access, no shell execution — just a clean, trustworthy chat window you can spin up in seconds.
+**openchat** fills the gap: a minimal, fast terminal chat interface that connects to an OpenAI-compatible provider, streams token-by-token, and renders responses beautifully with full syntax highlighting. No agents, no file access, no shell execution — just a clean, trustworthy chat window you can spin up in seconds.
 
 > Built for developers who live in the terminal and want fast, properly formatted answers without the overhead.
 
@@ -64,6 +64,7 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 - 📋 **Auto-copy on select** — mouse-drag selection copies text to the clipboard automatically (OSC 52, with `pbcopy` / `wl-copy` / `xclip` fallbacks)
 - ⌨️ **Slash commands** — `/models` to switch between configured models; `/connect` to manage API keys; autosuggestion popup appears as you type `/`
 - 🎨 **Themeable** — status bar colours, prompt character, and accent colours all configurable in `config.yaml`
+- 🗒️ **No saved history** — conversations are transient and live only in memory; nothing is written to disk, so each launch is a clean slate
 - 🔒 **Non-destructive by design** — pure chat interface; no file access, no shell execution, no agentic tools; safe to run anywhere
 
 ---
