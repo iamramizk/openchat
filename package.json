@@ -1,0 +1,25 @@
+{
+  "name": "openchat",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "openchat": "dist/openchat"
+  },
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "build:worker": "bun build src/bun-worker-shim.ts --target=bun --outdir src/worker --asset-naming=[name].[ext]",
+    "build:mac": "bun build src/index.tsx --compile --outfile dist/openchat"
+  },
+  "dependencies": {
+    "@opentui/core": "latest",
+    "@opentui/react": "latest",
+    "react": "^19",
+    "react-dom": "^19",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "bun-types": "^1.3.14",
+    "typescript": "^5.8.3"
+  }
+}

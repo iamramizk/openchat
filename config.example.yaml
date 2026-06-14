@@ -1,0 +1,25 @@
+default_model: gpt-oss-20b
+models:
+  - name: gpt-oss-20b
+    provider: openrouter
+    model: openai/gpt-oss-20b
+  - name: gpt-oss-120b
+    provider: openrouter
+    model: openai/gpt-oss-120b
+  - name: deepseek-v4-flash
+    provider: openrouter
+    model: deepseek/deepseek-v4-flash:nitro
+  - name: deepseek-v4-pro
+    provider: openrouter
+    model: deepseek/deepseek-v4-pro:nitro
+  - name: llama-3.3-70b
+    provider: groq
+    model: llama-3.3-70b-versatile
+default_persona: default
+colors:
+  model: "#58A6FF"
+  persona: "#79C0FF"
+  cost: "#A5D6FF"
+  popup: "#161B22"
+prompt_char: ">"
+prompt_color: "#58A6FF"
