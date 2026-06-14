@@ -140,7 +140,7 @@ Three-region vertical layout:
 
 - **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting. The vertical scrollbar is fully hidden from layout (no column gutter reserved) via a mount-time `verticalScrollBar.visible = false`; wheel and keyboard scrolling remain functional.
 - **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar.
-- **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`shift+tab persona · ctrl+c exit`).
+- **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`shift+tab persona · ctrl+c exit`) — the hints and their preceding `│` divider auto-hide on narrow terminals (computed via `useTerminalDimensions()`) to keep the bar readable.
   - When no model is configured: shows `no model configured` in blue + `/connect`/`/models` guidance.
 
 ## Core Functional Requirements
