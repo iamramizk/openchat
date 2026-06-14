@@ -20,6 +20,23 @@
 
 ---
 
+## Contents
+
+- [Why openchat?](#why-openchat)
+- [Screenshots](#screenshots)
+- [Features](#features)
+- [Supported Platforms](#supported-platforms)
+- [Installation](#installation)
+- [Updating & Uninstalling](#updating--uninstalling)
+- [Build from Source](#build-from-source)
+- [First Run](#first-run)
+- [What Gets Created](#what-gets-created)
+- [Commands](#commands)
+- [Configuration](#configuration)
+- [License](#license)
+
+---
+
 ## Why openchat?
 
 Tools like **opencode** and **Claude Code** are excellent — but they inject massive system prompts and agentic guardrails before you type a single character. For a quick question, that's thousands of wasted tokens and unnecessary overhead.
@@ -125,6 +142,14 @@ bun run build:linux-x64  # dist/openchat-linux-x64
 ---
 
 ## First Run
+
+Launch openchat from anywhere:
+
+```bash
+openchat
+```
+
+Then, inside the TUI:
 
 1. **Add an API key** — type `/connect`, pick a provider, and paste your key. It's saved immediately.
 2. **Choose a model** — type `/models` to see all configured models and switch with `Enter`. Press `a` to add a new model or `f` to set a boot default.
