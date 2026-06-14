@@ -21,14 +21,15 @@ BOLD=$'\033[1m'
 RESET=$'\033[0m'
 
 print_header() {
+  printf '\n'
   printf '%s' "$BLUE"
-  printf '⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿\n'
-  printf '⠀⢸⣿⣿⣿⠿⠿⠿⠿⠿⠿⠃\n'
-  printf '⠀⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀\n'
-  printf '⣾⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀\n'
-  printf '⠿⠿⠿⠿⠿⣿⣿⠏⠀⠀⠀⠀\n'
-  printf '⠀⠀⠀⠀⢀⣿⠏⠀⠀⠀⠀⠀\n'
-  printf '⠀⠀⠀⠀⣼⡏⠀⠀⠀⠀⠀⠀\n'
+  printf '  ⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿\n'
+  printf '  ⠀⢸⣿⣿⣿⠿⠿⠿⠿⠿⠿⠃\n'
+  printf '  ⠀⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀\n'
+  printf '  ⣾⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀\n'
+  printf '  ⠿⠿⠿⠿⠿⣿⣿⠏⠀⠀⠀⠀\n'
+  printf '  ⠀⠀⠀⠀⢀⣿⠏⠀⠀⠀⠀⠀\n'
+  printf '  ⠀⠀⠀⠀⣼⡏⠀⠀⠀⠀⠀⠀\n'
   printf '%s\n' "$RESET"
 }
 
