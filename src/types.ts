@@ -53,6 +53,9 @@ export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   isStreaming: boolean
+  /** Display-only override for user messages with large piped payloads.
+   *  Never sent to the model or replayed in conversation history. */
+  displayContent?: string
 }
 
 export interface ModelInfo {

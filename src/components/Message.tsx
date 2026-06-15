@@ -32,7 +32,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
       {/* Message content */}
       {isUser ? (
         <text fg={colors.text} style={{ width: "100%" }}>
-          {msg.content || ""}
+          {msg.displayContent ?? msg.content ?? ""}
         </text>
       ) : (
         <markdown

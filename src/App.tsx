@@ -58,6 +58,29 @@ function copyToClipboard(renderer: ReturnType<typeof useRenderer>, text: string)
   }
 }
 
+// ---------------------------------------------------------------------------
+// Helpers for piped-input display
+// ---------------------------------------------------------------------------
+
+function formatCharCount(n: number): string {
+  return n < 1000 ? `${n} chars` : `${(n / 1000).toFixed(1)}k chars`
+}
+
+const DISPLAY_HEAD = 10
+const DISPLAY_TAIL = 10
+
+/** Trim large piped content for display only (never affects the API payload). */
+function trimForDisplay(text: string): string {
+  const lines = text.split("\n")
+  if (lines.length <= DISPLAY_HEAD + DISPLAY_TAIL) return text
+  const hidden = lines.length - DISPLAY_HEAD - DISPLAY_TAIL
+  return [
+    ...lines.slice(0, DISPLAY_HEAD),
+    `… ${hidden.toLocaleString()} lines hidden …`,
+    ...lines.slice(-DISPLAY_TAIL),
+  ].join("\n")
+}
+
 interface Props {
   config: Config
   initialAuth: AuthStore
@@ -65,6 +88,7 @@ interface Props {
   personas: Persona[]
   globalPrompt: string
   initialPersonaIndex: number
+  initialPipedInput?: string
 }
 
 export function App({
@@ -74,6 +98,7 @@ export function App({
   personas,
   globalPrompt,
   initialPersonaIndex,
+  initialPipedInput,
 }: Props) {
   const renderer = useRenderer()
 
@@ -143,6 +168,13 @@ export function App({
   const pendingInputRef = useRef("")
   const [inputKey, setInputKey] = useState(0)
 
+  // Piped stdin content (e.g. `cat file.txt | openchat`).
+  // Held separately — never enters the textarea; composed into the API message
+  // on first send, then cleared. Border title on InputBar signals its presence.
+  const [pipedContent, setPipedContent] = useState(initialPipedInput ?? "")
+  const pipedContentRef = useRef(initialPipedInput ?? "")
+  pipedContentRef.current = pipedContent
+
   const messagesRef = useRef<ChatMessage[]>([])
   messagesRef.current = messages
 
@@ -190,7 +222,7 @@ export function App({
   // Send message
   // -------------------------------------------------------------------------
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, displayText?: string) {
     if (!connection) {
       showToast("No model configured — type /connect to add credentials")
       return
@@ -203,6 +235,8 @@ export function App({
       role: "user",
       content: text,
       isStreaming: false,
+      // displayContent only set when it differs from content (i.e. piped trimming)
+      ...(displayText !== undefined ? { displayContent: displayText } : {}),
     }
     const assistantId = genId()
     const assistantMsg: ChatMessage = {
@@ -267,12 +301,15 @@ export function App({
 
   function handleSubmit() {
     const text = pendingInputRef.current.trim()
-    if (!text || isStreaming) return
+    // Allow empty typed message when piped content is attached
+    if ((!text && !pipedContentRef.current) || isStreaming) return
     pendingInputRef.current = ""
     setInputValue("")
     setInputKey((k) => k + 1) // remount input to clear visual state
 
     if (text.startsWith("/")) {
+      // Slash commands: don't consume piped content — keep it attached so the
+      // user can open /models or /connect and still send their real message.
       const token = text.split(/\s/)[0].toLowerCase()
       // Exact match first, then unique prefix match
       const exactMatch = COMMANDS.find((c) => c.name === token)
@@ -291,7 +328,23 @@ export function App({
       return
     }
 
-    void sendMessage(text)
+    // Compose piped content (if any) before the user's typed query, XML-wrapped
+    // so the model clearly distinguishes data from instruction.
+    const piped = pipedContentRef.current
+    if (piped) {
+      setPipedContent("")
+      pipedContentRef.current = ""
+    }
+    const composed = piped
+      ? `<piped-input>\n${piped}\n</piped-input>\n\n${text}`
+      : text
+    // Build a trimmed display variant (top 10 + bottom 10 lines) so the chat
+    // pane doesn't overflow with a massive paste. Full content goes to the model.
+    const display = piped
+      ? `<piped-input>\n${trimForDisplay(piped)}\n</piped-input>\n\n${text}`
+      : undefined
+
+    void sendMessage(composed, display)
   }
 
   // -------------------------------------------------------------------------
@@ -365,6 +418,11 @@ export function App({
 
   const popupBg = cfg.colors.popup
 
+  // Border title for the input box when piped content is attached
+  const pipedTitle = pipedContent
+    ? ` piped input · ${formatCharCount(pipedContent.length)} `
+    : undefined
+
   // The input bar is 3 rows tall (border + 1 line + border) + 1 row status bar = 4 rows from bottom
   const SUGGESTION_BOTTOM = 4
 
@@ -388,6 +446,7 @@ export function App({
         inputKey={inputKey}
         promptChar={cfg.prompt_char}
         promptColor={cfg.prompt_color}
+        pipedTitle={pipedTitle}
         onContentChange={(v) => { pendingInputRef.current = v; setInputValue(v) }}
         onSubmit={handleSubmit}
       />

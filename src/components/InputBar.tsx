@@ -7,11 +7,13 @@ interface Props {
   inputKey: number
   promptChar: string
   promptColor: string
+  /** Border title shown when piped stdin content is attached, e.g. "◆ piped input · 1.2k chars" */
+  pipedTitle?: string
   onContentChange: (text: string) => void
   onSubmit: () => void
 }
 
-export function InputBar({ isStreaming, inputKey, promptChar, promptColor, onContentChange, onSubmit }: Props) {
+export function InputBar({ isStreaming, inputKey, promptChar, promptColor, pipedTitle, onContentChange, onSubmit }: Props) {
   const textareaRef = useRef<TextareaRenderable>(null)
   const [textHeight, setTextHeight] = useState(1)
 
@@ -35,6 +37,9 @@ export function InputBar({ isStreaming, inputKey, promptChar, promptColor, onCon
 
   return (
     <box
+      title={pipedTitle}
+      titleColor={colors.textMuted}
+      titleAlignment="right"
       style={{
         width: "100%",
         flexShrink: 0,

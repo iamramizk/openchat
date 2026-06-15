@@ -28,6 +28,15 @@ the TUI to add API credentials for the providers referenced in the config.
 
 Press `Ctrl+C` to exit.
 
+You can also pipe command or file output directly into a session:
+
+```bash
+cat error.log | bun run start
+git diff | bun run start
+```
+
+Stdin is drained to EOF before the renderer boots (`!process.stdin.isTTY` guard), then `/dev/tty` is reopened and passed via `createCliRenderer({ stdin })` so the keyboard stays interactive.
+
 ## Building a Standalone Binary
 
 Requires **Bun ≥ 1.2** (native FFI packaging in the bundler was fixed in 1.2; 1.1.x generates invalid output for the opentui dylib wrapper).
@@ -139,7 +148,7 @@ Three-region vertical layout:
 ```
 
 - **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting. The vertical scrollbar is fully hidden from layout (no column gutter reserved) via a mount-time `verticalScrollBar.visible = false`; wheel and keyboard scrolling remain functional.
-- **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar.
+- **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar. When stdin was piped, a right-aligned ` piped input · N chars ` title appears on the box border (in the muted ctx colour) and clears after the first send.
 - **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`shift+tab persona · ctrl+c exit`) — the hints and their preceding `│` divider auto-hide on narrow terminals (computed via `useTerminalDimensions()`) to keep the bar readable.
   - When no model is configured: shows `no model configured` in blue + `/connect`/`/models` guidance.
 
@@ -152,6 +161,7 @@ Three-region vertical layout:
 - **Cost Tracking:** Accumulated from `usage.cost` in the final SSE chunk (OpenRouter only). Shows `—`/`$0` for providers that don't report cost.
 - **Persona Cycling:** **Shift+Tab** cycles through personas at runtime. Conversation history is preserved; only the system prompt changes on the next turn. The active persona is shown in the status bar.
 - **Auto-copy:** Mouse-drag selection automatically copies the selected text to the system clipboard (OSC 52 primary; `pbcopy` / `wl-copy` / `xclip` fallback per platform). A transient `✓ copied to clipboard` toast confirms each copy.
+- **Piped stdin:** When launched via a pipe (`cat file | openchat`), stdin is drained to EOF before `createCliRenderer` (guarded on `!process.stdin.isTTY`). `/dev/tty` is then opened with `new ReadStream(openSync("/dev/tty", "r"))` and passed via the `stdin` config override so the keyboard stays live. The stream is `.unref()`d immediately and `.destroy()`d in the `onDestroy` callback so Ctrl+C exits in one press (opentui calls only `.pause()` on its stdin — a custom ReadStream would otherwise keep the event loop alive). On send, piped content is composed before the typed query wrapped in `<piped-input>…</piped-input>` XML tags (full payload sent to the model and preserved in history). The chat pane shows a trimmed preview via `ChatMessage.displayContent` (top 10 + bottom 10 lines with `… N lines hidden …`) while `content` holds the full text for the API.
 
 ## In-TUI Commands
 
@@ -166,7 +176,7 @@ Typing `/` or a partial command (e.g. `/m`, `/co`) in the input bar shows a floa
 
 ```
 src/
-  index.tsx             # entry: bootstrap, load config + auth + personas, init tree-sitter, createRoot + <App>
+  index.tsx             # entry: bootstrap, read piped stdin (pre-renderer) + open /dev/tty, load config + auth + personas, init tree-sitter, createRoot + <App>
   config.ts             # loadConfig() (XDG path), saveConfig() (writes config.yaml), resolveConnection()
   auth.ts               # loadAuth(), saveAuth(), setProviderKey()
   paths.ts              # XDG path helpers: configDir/dataDir/configFile/authFile/promptsDir + ensureDirectories() + ensureWorker() (uses BUNDLED_* constants)
@@ -175,18 +185,18 @@ src/
   providers.ts          # PROVIDERS registry: openrouter | groq | openai + PROVIDER_LIST
   personas.ts           # loadPersonas() + composeSystemPrompt()
   openrouter.ts         # fetchModelInfo(conn) + streamCompletion(conn, …) — takes ActiveConnection
-  types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage, ModelInfo, SessionStats, StreamChunk
+  types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (+ displayContent), ModelInfo, SessionStats, StreamChunk
   theme.ts              # color palette + SyntaxStyle for <markdown>
   parsers.ts            # EXTRA_PARSERS: FiletypeParserOptions[] for addDefaultParsers()
   bun-worker-shim.ts    # Bun worker compat shim — polyfills globalThis.close then imports @opentui/core/parser.worker
   worker/               # pre-built worker sidecar (committed; regenerate with `bun run build:worker`)
     bun-worker-shim.js  # standalone worker bundle (~198KB) generated by build:worker; embedded as text in bundled-assets.ts
     tree-sitter.wasm    # web-tree-sitter runtime (~201KB); embedded via `with { type: "file" }` in index.tsx
-  App.tsx               # root component: state, command dispatch, modal state, connection resolution
+  App.tsx               # root component: state, command dispatch, modal state, connection resolution; pipedContent state + trimForDisplay() compose on send
   components/
     ChatPane.tsx        # <scrollbox> + message list
-    Message.tsx         # single turn (user text or assistant <markdown streaming treeSitterClient>)
-    InputBar.tsx        # <textarea> with submit + clear; disabled while modal open
+    Message.tsx         # single turn (user text or assistant <markdown streaming treeSitterClient>); renders displayContent ?? content for user turns
+    InputBar.tsx        # <textarea> with submit + clear; disabled while modal open; shows piped-input border title when attached
     StatusBar.tsx           # model · persona · status · ctx% · cost; no-model state (blue accent)
     Toast.tsx               # transient "✓ copied to clipboard" floating overlay
     CommandPalette.tsx      # /models (ModelsModal) + /connect (ConnectModal) — borderless overlays, colors.popup background

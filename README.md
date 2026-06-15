@@ -30,6 +30,7 @@
 - [Updating & Uninstalling](#updating--uninstalling)
 - [Build from Source](#build-from-source)
 - [First Run](#first-run)
+- [Piping Input](#piping-input)
 - [What Gets Created](#what-gets-created)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -81,6 +82,7 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 - 📋 **Auto-copy on select** — mouse-drag selection copies text to the clipboard automatically (OSC 52, with `pbcopy` / `wl-copy` / `xclip` fallbacks)
 - ⌨️ **Slash commands** — `/models` to switch between configured models; `/connect` to manage API keys; autosuggestion popup appears as you type `/`
 - 🎨 **Themeable** — status bar colours, prompt character, and accent colours all configurable in `config.yaml`
+- 📥 **Pipe input** — feed command or file output straight into a chat: `cat error.log | openchat`. The content attaches to your first message (shown trimmed in the chat, sent in full to the model) — just type your question and send
 - 🗒️ **No saved history** — conversations are transient and live only in memory; nothing is written to disk, so each launch is a clean slate
 - 🔒 **Non-destructive by design** — pure chat interface; no file access, no shell execution, no agentic tools; safe to run anywhere
 
@@ -156,6 +158,20 @@ Then, inside the TUI:
 3. **Start chatting** — type your message and press `Enter` to send. `Shift+Enter` inserts a newline.
 4. **Switch personas** — press `Shift+Tab` to cycle through available personas without losing your conversation.
 5. **Exit** — press `Ctrl+C`.
+
+---
+
+## Piping Input
+
+Pipe command or file output directly into a new chat:
+
+```bash
+cat error.log | openchat
+git diff | openchat
+kubectl logs my-pod | openchat
+```
+
+openchat opens with a ` piped input · N chars ` label on the right side of the input border. Type your question (e.g. *"what's causing this error?"*) and press `Enter`. The full content is sent to the model wrapped in `<piped-input>` tags before your query, while the chat pane shows a trimmed preview (first and last 10 lines) so large payloads stay readable. Nothing is sent until you submit.
 
 ---
 

@@ -107,6 +107,25 @@ This file tracks critical architectural decisions, non-obvious technical discove
 
 ---
 
+### [2026-06-15] Piping stdin into the TUI — /dev/tty, clean exit, display/API content split
+
+- **Context:** Adding `cat file | openchat` support. Three separate non-obvious problems had to be solved.
+
+- **1. opentui never opens `/dev/tty` — piping kills the keyboard.**
+  When launched via a pipe, `process.stdin` is the pipe fd, not the terminal. `createCliRenderer` defaults to `config.stdin ?? process.stdin` and sets up its key-input listener there — it never falls back to `/dev/tty` (no `node:tty` or `/dev/tty` usage anywhere in `@opentui/core`). So after the pipe is read, the renderer's `"data"` listener is attached to an ended stream and keystrokes are never received.
+  **Fix:** drain stdin to EOF via `await Bun.stdin.text()` *before* `createCliRenderer` (guarded on `!process.stdin.isTTY` so normal launches are unaffected), then open the controlling terminal manually: `new ReadStream(openSync("/dev/tty", "r"))` and pass it via `createCliRenderer({ stdin: rendererStdin })`. The `stdin` config option is the supported escape hatch; the renderer treats it identically to `process.stdin`.
+
+- **2. Custom ReadStream keeps the event loop alive — Ctrl+C requires two presses.**
+  opentui's `destroy()` (called by Ctrl+C / `exitOnCtrlC: true`, NOT `process.exit()`) only calls `removeListener` + `setRawMode(false)` + `.pause()` on its stdin — it never `.destroy()` or `.unref()`s a passed-in stream. Node's `process.stdin` auto-unrefs when paused (special-cased in Node internals), so the default launch exits cleanly. A hand-opened `/dev/tty` ReadStream stays referenced after `.pause()`, keeping the event loop alive until a second Ctrl+C delivers SIGINT.
+  **Fix:** Call `rendererStdin.unref()` immediately after `new ReadStream(...)` so the fd never blocks exit, then pass `onDestroy: () => rendererStdin.destroy()` to `createCliRenderer` (`renderer.d.ts:48`) to close the fd promptly on teardown. Both are needed: `.unref()` covers any exit path; `onDestroy` closes the fd cleanly on the normal graceful path.
+
+- **3. One `text` value served both the display and the API — trimming required a split.**
+  `sendMessage(text)` used the same string for `userMsg.content` (rendered in the chat pane) and the API `reqMessages` array + conversation history. Trimming `content` would also truncate what the model receives and what follow-up turns replay.
+  **Fix:** Added `displayContent?: string` to `ChatMessage` (`src/types.ts`). `Message.tsx` renders `msg.displayContent ?? msg.content` for user turns. In `handleSubmit`, a separate `trimForDisplay()` helper produces a preview (top 10 + bottom 10 lines, `… N lines hidden …` in between) for `displayContent`, while the full XML-wrapped payload goes into `content` and the API. The `sendMessage(text, displayText?)` signature was extended to receive both.
+  **Takeaway:** Any future feature that needs to show a different representation than what's sent to the model should use this same `displayContent` pattern rather than altering `content`.
+
+---
+
 ### [2026-06-14] opentui ScrollBar API does NOT support rounding, sub-1-column thinness, or idle auto-hide
 
 - **Context:** Styling the chat-pane scrollbar to be discrete ("only appear when scrolling, rounded, thinner").

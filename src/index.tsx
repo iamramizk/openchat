@@ -7,7 +7,8 @@ import { EXTRA_PARSERS } from "./parsers.ts"
 import { ensureWorker } from "./paths.ts"
 import { UPDATE_SH, UNINSTALL_SH } from "./bundled-assets.ts"
 import { App } from "./App.tsx"
-import { writeFileSync, unlinkSync } from "fs"
+import { writeFileSync, unlinkSync, openSync } from "fs"
+import { ReadStream } from "node:tty"
 import { tmpdir } from "os"
 import pkg from "../package.json"
 
@@ -65,6 +66,38 @@ if (_cmd === "update" || _cmd === "uninstall") {
 }
 
 // ---------------------------------------------------------------------------
+// Piped stdin — read before the renderer so we capture the pipe fully before
+// opentui takes ownership of the stdin stream.
+//
+// When the user runs `cat file.txt | openchat`, process.stdin is the pipe and
+// is NOT a TTY. We drain it here, then open /dev/tty for keyboard input and
+// pass it to createCliRenderer via the `stdin` override — otherwise the renderer
+// would attach its key-input listener to the (now-exhausted) pipe and the
+// keyboard would be dead.
+// ---------------------------------------------------------------------------
+
+let pipedInput = ""
+let rendererStdin: NodeJS.ReadStream | undefined
+
+if (!process.stdin.isTTY) {
+  // Drain the pipe to EOF before the renderer starts.
+  pipedInput = (await Bun.stdin.text()).trim()
+
+  if (pipedInput) {
+    // Open the controlling terminal so the renderer can still read keystrokes.
+    try {
+      rendererStdin = new ReadStream(openSync("/dev/tty", "r"))
+      // Unref immediately: a custom ReadStream keeps the event loop alive after
+      // the renderer tears down (opentui only calls .pause() on stdin, never
+      // .destroy() or .unref()). Without this, Ctrl+C requires two presses.
+      rendererStdin.unref()
+    } catch {
+      console.warn("openchat: no controlling terminal — interactive input unavailable")
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Boot — config and personas are loaded from user config dir.
 // Missing credentials are handled in-TUI via /connect, not by crashing.
 // ---------------------------------------------------------------------------
@@ -106,6 +139,10 @@ const renderer = await createCliRenderer({
   exitOnCtrlC: true,
   targetFps: 30,
   maxFps: 60,
+  ...(rendererStdin ? { stdin: rendererStdin } : {}),
+  // Belt-and-suspenders: promptly close the /dev/tty fd when the renderer
+  // tears down so nothing lingers even if unref() wasn't enough.
+  ...(rendererStdin ? { onDestroy: () => { try { rendererStdin!.destroy() } catch {} } } : {}),
 })
 
 renderer.setTerminalTitle("openchat")
@@ -150,5 +187,6 @@ createRoot(renderer).render(
     personas={personas}
     globalPrompt={globalPrompt}
     initialPersonaIndex={initialPersonaIndex}
+    initialPipedInput={pipedInput || undefined}
   />,
 )
