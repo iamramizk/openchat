@@ -5,9 +5,10 @@ import { streamCompletion, fetchModelInfo } from "./openrouter.ts"
 import { composeSystemPrompt } from "./personas.ts"
 import { syntaxStyle, colors } from "./theme.ts"
 import { resolveConnection, saveConfig } from "./config.ts"
-import { setProviderKey } from "./auth.ts"
+import { setProviderKey, setProviderBaseUrl } from "./auth.ts"
 import type { Config, ChatMessage, ModelEntry, ModelInfo, Persona, SessionStats, ActiveConnection } from "./types.ts"
 import type { AuthStore } from "./auth.ts"
+import { PROVIDERS } from "./providers.ts"
 import { ChatPane } from "./components/ChatPane.tsx"
 import { InputBar } from "./components/InputBar.tsx"
 import { StatusBar } from "./components/StatusBar.tsx"
@@ -207,6 +208,9 @@ export function App({
     if (key.shift && key.name === "tab") {
       setPersonaIndex((i) => (i + 1) % personas.length)
     }
+    if (key.ctrl && key.name === "p") {
+      setModal("models")
+    }
   })
 
   useSelectionHandler((selection) => {
@@ -260,10 +264,23 @@ export function App({
       for await (const chunk of streamCompletion(connection, reqMessages, systemPrompt)) {
         if (chunk.done) break
 
-        if (chunk.delta) {
+        // Reasoning tokens arrive before the answer on thinking models.
+        // Set isThinking while only reasoning is flowing (content still empty).
+        if (chunk.reasoning) {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId ? { ...m, content: m.content + chunk.delta } : m,
+              m.id === assistantId && m.content === "" ? { ...m, isThinking: true } : m,
+            ),
+          )
+        }
+
+        if (chunk.delta) {
+          // First real content delta — clear the thinking state in the same update.
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: m.content + chunk.delta, isThinking: false }
+                : m,
             ),
           )
         }
@@ -279,14 +296,14 @@ export function App({
       }
 
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m)),
+        prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false, isThinking: false } : m)),
       )
     } catch (err) {
       const errorText = err instanceof Error ? err.message : String(err)
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, content: `**Error:** ${errorText}`, isStreaming: false }
+            ? { ...m, content: `**Error:** ${errorText}`, isStreaming: false, isThinking: false }
             : m,
         ),
       )
@@ -351,11 +368,17 @@ export function App({
   // /connect save handler
   // -------------------------------------------------------------------------
 
-  function handleConnectSave(providerName: string, apiKey: string) {
-    const updated = setProviderKey(auth, providerName, apiKey)
+  function handleConnectSave(providerName: string, valueOrUrl: string) {
+    const providerLabel = PROVIDERS[providerName]?.label ?? (providerName.charAt(0).toUpperCase() + providerName.slice(1))
+    let updated: AuthStore
+    if (PROVIDERS[providerName]?.keyless) {
+      updated = setProviderBaseUrl(auth, providerName, valueOrUrl)
+      showToast(`✓ ${providerLabel} base URL saved to auth.json`)
+    } else {
+      updated = setProviderKey(auth, providerName, valueOrUrl)
+      showToast(`✓ ${providerLabel} key saved to auth.json`)
+    }
     setAuth(updated)
-    const providerLabel = providerName.charAt(0).toUpperCase() + providerName.slice(1)
-    showToast(`✓ ${providerLabel} key saved to auth.json`)
   }
 
   // -------------------------------------------------------------------------

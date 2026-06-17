@@ -4,14 +4,14 @@ A simplified, non-agentic Terminal User Interface (TUI) for chatting with any Op
 
 ## Project Goal
 
-To create a lightweight, streamlined terminal interface that facilitates fast, direct communication with LLM providers (OpenRouter, Groq, OpenAI, or any OpenAI-compatible endpoint) without agentic workflows. The interface mimics the visual aesthetic of `opencode` but in a vastly simplified manner, focusing strictly on clear chat presentation and real-time session statistics.
+To create a lightweight, streamlined terminal interface that facilitates fast, direct communication with LLM providers (OpenRouter, Groq, OpenAI, Ollama, or any OpenAI-compatible endpoint) without agentic workflows. The interface mimics the visual aesthetic of `opencode` but in a vastly simplified manner, focusing strictly on clear chat presentation and real-time session statistics.
 
 ## Tech Stack & Dependencies
 
 - **UI/Layout Skill:** `anomalyco/opentui` (installed locally at `.agents/skills/opentui/`)
 - **Runtime:** **Bun** (opentui's renderer requires native FFI; Bun provides this out of the box)
 - **UI Framework:** `@opentui/react` (React 19 + JSX bindings for opentui)
-- **API Providers:** OpenRouter, Groq, OpenAI (all OpenAI-compatible)
+- **API Providers:** OpenRouter, Groq, OpenAI, Ollama (all OpenAI-compatible). Ollama is keyless — no API key required; it runs locally at `http://localhost:11434/v1` by default.
 - **Language:** TypeScript
 - **Key Packages:** `yaml` (config parsing), native `fetch` (streaming SSE requests)
 
@@ -25,6 +25,10 @@ On first run, the app seeds `~/.config/openchat/config.yaml` by **cloning the bu
 `config.example.yaml`** and copies the bundled `prompts/` directory to
 `~/.config/openchat/prompts/`. Edit those files to customise the app. Use `/connect` in
 the TUI to add API credentials for the providers referenced in the config.
+
+**Ollama** is keyless — any model with `provider: ollama` in `config.yaml` works
+immediately as long as the Ollama server is running (`ollama serve`). No `/connect` step
+is needed unless you want to override the default base URL (`http://localhost:11434/v1`).
 
 Press `Ctrl+C` to exit.
 
@@ -125,10 +129,16 @@ rewritten by `saveConfig()`. Comments in the file are stripped on first rewrite 
     "groq": {
       "api_key": "gsk_...",
       "base_url": "https://api.groq.com/openai/v1"
+    },
+    "ollama": {
+      "api_key": "",
+      "base_url": "http://localhost:11434/v1"
     }
   }
 }
 ```
+
+**Ollama zero-config:** if no `ollama` entry exists in `auth.json` at all, `resolveConnection` falls back to the default base URL from the provider registry (`http://localhost:11434/v1`). You only need to run `/connect → Ollama` if you want to override the host/port.
 
 ## Interface Design (The Layout)
 
@@ -149,13 +159,15 @@ Three-region vertical layout:
 
 - **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting. The vertical scrollbar is fully hidden from layout (no column gutter reserved) via a mount-time `verticalScrollBar.visible = false`; wheel and keyboard scrolling remain functional.
 - **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar. When stdin was piped, a right-aligned ` piped input · N chars ` title appears on the box border (in the muted ctx colour) and clears after the first send.
-- **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`shift+tab persona · ctrl+c exit`) — the hints and their preceding `│` divider auto-hide on narrow terminals (computed via `useTerminalDimensions()`) to keep the bar readable.
+- **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`ctrl+p models · shift+tab persona · ctrl+c exit`) — the hints and their preceding `│` divider auto-hide on narrow terminals (computed via `useTerminalDimensions()`) to keep the bar readable.
   - When no model is configured: shows `no model configured` in blue + `/connect`/`/models` guidance.
 
 ## Core Functional Requirements
 
-- **Streaming Responses:** Token-by-token output via OpenAI-compatible SSE (`stream: true`, `stream_options: { include_usage: true }`). The `stream_options` field is the OpenAI-standard way to request streaming usage; the former `usage: { include: true }` was OpenRouter-proprietary and rejected by Groq/OpenAI.
+- **Streaming Responses:** Token-by-token output via OpenAI-compatible SSE (`stream: true`, `stream_options: { include_usage: true }`). The `stream_options` field is the OpenAI-standard way to request streaming usage; the former `usage: { include: true }` was OpenRouter-proprietary and rejected by Groq/OpenAI. `streamCompletion` also surfaces reasoning tokens from the `delta.reasoning` / `delta.reasoning_content` / `delta.thinking` field (whichever the provider emits) as `StreamChunk.reasoning`.
+- **Thinking Indicator:** When a reasoning-capable model (e.g. Ollama gpt-oss, DeepSeek-R1, OpenAI o-series) emits reasoning tokens before the answer, an animated braille spinner (`⠋ Thinking`) appears in the assistant message. It disappears the moment the first answer token arrives. Implemented via `ChatMessage.isThinking` + `ThinkingIndicator.tsx` (animated `setInterval` cycling braille frames at 80 ms).
 - **Slash Commands:** `/models` and `/connect` open modal overlays. Any other `/x` input shows an error toast. Plain text is sent to the model.
+- **Ctrl+P shortcut:** Opens the `/models` modal from anywhere (no typing `/models` required). Works in all terminals including legacy raw-mode terminals (collision-free unlike Ctrl+M).
 - **State Management:** Full conversation history maintained in React state for ongoing context.
 - **Context Tracking:** Accumulated from `usage.total_tokens` returned per completed turn; denominator from the provider's `/models` endpoint. Accepts both `context_length` (OpenRouter) and `context_window` (Groq); optional per-entry override in config.yaml.
 - **Cost Tracking:** Accumulated from `usage.cost` in the final SSE chunk (OpenRouter only). Shows `—`/`$0` for providers that don't report cost.
@@ -167,8 +179,8 @@ Three-region vertical layout:
 
 | Command    | Action                                                                                                                                                                                                                   |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/connect` | Opens a two-step modal: (1) pick a provider from the registry, (2) enter your API key. Saves to `auth.json` immediately. Already-saved keys are shown with a `✓` indicator. Footer shows the `auth.json` path.          |
-| `/models`  | Opens a modal listing all entries from `models[]` in `config.yaml`. Keys: **enter** — switch active model; **a** — add a new model (provider → model-id → display name, writes to `config.yaml`); **d** — delete highlighted model (confirm with `d`/`y`); **f** — set highlighted model as the boot default (★); **r** — rename the highlighted model's display name. Entries missing a key are marked `(no key — run /connect)`. Footer shows the `config.yaml` path. |
+| `/connect` | Opens a two-step modal: (1) pick a provider from the registry, (2) enter your API key — or, for **keyless providers** (Ollama), edit the base URL instead (pre-filled with the default). Saves to `auth.json` immediately. Already-saved keys shown with `✓ key saved`; keyless providers show `✓ no key needed`. Footer shows the `auth.json` path. |
+| `/models`  | Opens a modal listing all entries from `models[]` in `config.yaml`. Keys: **enter** — switch active model; **a** — add a new model (provider → model-id → display name, writes to `config.yaml`); for **Ollama**, the model-id step is replaced by a live pick-list fetched from the running server. **d** — delete highlighted model (confirm with `d`/`y`); **f** — set highlighted model as the boot default (★); **r** — rename the highlighted model's display name. Entries missing a key are marked `(no key — run /connect)`; keyless models are never marked. Footer shows the `config.yaml` path. |
 
 Typing `/` or a partial command (e.g. `/m`, `/co`) in the input bar shows a floating autosuggestion list above the input. Partial prefix submission works: `/mod`+Enter opens `/models`, `/con`+Enter opens `/connect`.
 
@@ -178,13 +190,13 @@ Typing `/` or a partial command (e.g. `/m`, `/co`) in the input bar shows a floa
 src/
   index.tsx             # entry: bootstrap, read piped stdin (pre-renderer) + open /dev/tty, load config + auth + personas, init tree-sitter, createRoot + <App>
   config.ts             # loadConfig() (XDG path), saveConfig() (writes config.yaml), resolveConnection()
-  auth.ts               # loadAuth(), saveAuth(), setProviderKey()
+  auth.ts               # loadAuth(), saveAuth(), setProviderKey(), setProviderBaseUrl() (keyless providers)
   paths.ts              # XDG path helpers: configDir/dataDir/configFile/authFile/promptsDir + ensureDirectories() + ensureWorker() (uses BUNDLED_* constants)
   bundled-assets.ts     # seed content + pre-built worker JS embedded via `with { type: "text" }` — safe in compiled binary (see LEARNINGS.md)
   assets.d.ts           # `declare module "*.md"` so TypeScript accepts the text-import attributes
-  providers.ts          # PROVIDERS registry: openrouter | groq | openai + PROVIDER_LIST
+  providers.ts          # PROVIDERS registry: openrouter | groq | openai | ollama + PROVIDER_LIST; ProviderDef.keyless flag
   personas.ts           # loadPersonas() + composeSystemPrompt()
-  openrouter.ts         # fetchModelInfo(conn) + streamCompletion(conn, …) — takes ActiveConnection
+  openrouter.ts         # fetchModelInfo(conn) + streamCompletion(conn, …) + fetchInstalledModels(baseUrl, apiKey) — takes ActiveConnection
   types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (+ displayContent), ModelInfo, SessionStats, StreamChunk
   theme.ts              # color palette + SyntaxStyle for <markdown>
   parsers.ts            # EXTRA_PARSERS: FiletypeParserOptions[] for addDefaultParsers()
@@ -199,6 +211,7 @@ src/
     InputBar.tsx        # <textarea> with submit + clear; disabled while modal open; shows piped-input border title when attached
     StatusBar.tsx           # model · persona · status · ctx% · cost; no-model state (blue accent)
     Toast.tsx               # transient "✓ copied to clipboard" floating overlay
+    ThinkingIndicator.tsx   # animated braille spinner (⠋ Thinking) shown while isThinking; setInterval 80ms cycling FRAMES[]
     CommandPalette.tsx      # /models (ModelsModal) + /connect (ConnectModal) — borderless overlays, colors.popup background
     CommandSuggestions.tsx  # floating slash-command autosuggestion popup above input bar — borderless, colors.popup background
 prompts/                # bundled seed — copied to ~/.config/openchat/prompts/ on first run

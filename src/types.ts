@@ -53,6 +53,8 @@ export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   isStreaming: boolean
+  /** True while the model is emitting reasoning tokens and no answer content has arrived yet. */
+  isThinking?: boolean
   /** Display-only override for user messages with large piped payloads.
    *  Never sent to the model or replayed in conversation history. */
   displayContent?: string
@@ -75,6 +77,8 @@ export interface SessionStats {
 
 export interface StreamChunk {
   delta: string
+  /** Reasoning/thinking token from models that emit a separate reasoning field. */
+  reasoning?: string
   usage?: {
     prompt_tokens: number
     completion_tokens: number

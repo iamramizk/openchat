@@ -44,7 +44,7 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 
 **Ollama** is great for local models, but its TUI renders responses as plain text — no markdown, no syntax highlighting, no colour. Reading code in it is painful.
 
-**openchat** fills the gap: a minimal, fast terminal chat interface that connects to an OpenAI-compatible provider, streams token-by-token, and renders responses beautifully with full syntax highlighting. No agents, no file access, no shell execution — just a clean, trustworthy chat window you can spin up in seconds.
+**openchat** fills the gap: a minimal, fast terminal chat interface that connects to any OpenAI-compatible provider — cloud or local — streams token-by-token, and renders responses beautifully with full syntax highlighting. Ollama is a first-class provider: no API key, zero config, just run `ollama serve` and start chatting. No agents, no file access, no shell execution — just a clean, trustworthy chat window you can spin up in seconds.
 
 > Built for developers who live in the terminal and want fast, properly formatted answers without the overhead.
 
@@ -76,11 +76,13 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 
 - ⚡ **Lightning-fast streaming** — token-by-token SSE output via the standard OpenAI streaming API; responses appear instantly as they generate
 - 🎨 **Rich terminal rendering** — full Markdown formatting and syntax highlighting powered by tree-sitter; code blocks look great out of the box
-- 🔌 **BYO API key** — works with [OpenRouter](https://openrouter.ai), [Groq](https://groq.com), [OpenAI](https://platform.openai.com), or any OpenAI-compatible endpoint; more providers coming
+- 🔌 **Multi-provider** — works with [OpenRouter](https://openrouter.ai), [Groq](https://groq.com), [OpenAI](https://platform.openai.com), or any OpenAI-compatible endpoint; switch models on the fly with `Ctrl+P`
+- 🦙 **Ollama — local models, zero config** — first-class Ollama support with no API key required; just run `ollama serve` and your local models are ready. The `/models` picker lists installed models live from the running server
+- 🧠 **Thinking indicator** — reasoning-capable models (Ollama, DeepSeek-R1, OpenAI o-series) show an animated `⠋ Thinking` spinner while they reason; it disappears the moment the answer begins streaming
 - 🎭 **Customisable personas** — four built-in system-prompt presets (Default, Hacker, Developer, Writer) plus a shared global preamble; cycle live with `Shift+Tab` without losing conversation history; fully user-editable Markdown files
 - 📊 **Live session stats** — context-window percentage, running token count, and cumulative session cost shown in the status bar on every turn
 - 📋 **Auto-copy on select** — mouse-drag selection copies text to the clipboard automatically (OSC 52, with `pbcopy` / `wl-copy` / `xclip` fallbacks)
-- ⌨️ **Slash commands** — `/models` to switch between configured models; `/connect` to manage API keys; autosuggestion popup appears as you type `/`
+- ⌨️ **Slash commands & shortcuts** — `/models` or `Ctrl+P` to switch models; `/connect` to manage API keys; autosuggestion popup appears as you type `/`
 - 🎨 **Themeable** — status bar colours, prompt character, and accent colours all configurable in `config.yaml`
 - 📥 **Pipe input** — feed command or file output straight into a chat: `cat error.log | openchat`. The content attaches to your first message (shown trimmed in the chat, sent in full to the model) — just type your question and send
 - 🗒️ **No saved history** — conversations are transient and live only in memory; nothing is written to disk, so each launch is a clean slate
@@ -125,7 +127,7 @@ Both commands work from the binary itself — no curl needed after initial insta
 
 ## Build from Source
 
-Requires **[Bun](https://bun.sh) ≥ 1.2** and an API key for at least one provider.
+Requires **[Bun](https://bun.sh) ≥ 1.2**. For cloud providers you'll need an API key; for Ollama, just have the server running locally.
 
 ```bash
 git clone https://github.com/iamramizk/openchat.git
@@ -153,8 +155,8 @@ openchat
 
 Then, inside the TUI:
 
-1. **Add an API key** — type `/connect`, pick a provider, and paste your key. It's saved immediately.
-2. **Choose a model** — type `/models` to see all configured models and switch with `Enter`. Press `a` to add a new model or `f` to set a boot default.
+1. **Add an API key** — type `/connect`, pick a provider, and paste your key. It's saved immediately. For **Ollama**, no key is needed — just pick it and confirm the base URL (default: `http://localhost:11434/v1`).
+2. **Choose a model** — press `Ctrl+P` (or type `/models`) to see all configured models and switch with `Enter`. Press `a` to add a new model (`f` to set a default, `r` to rename). For Ollama, a live list of your installed models is shown — no typing model IDs.
 3. **Start chatting** — type your message and press `Enter` to send. `Shift+Enter` inserts a newline.
 4. **Switch personas** — press `Shift+Tab` to cycle through available personas without losing your conversation.
 5. **Exit** — press `Ctrl+C`.
@@ -197,8 +199,8 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 
 | Command | Action |
 |---------|--------|
-| `/connect` | Opens a two-step modal: pick a provider → enter your API key. Already-saved keys show a `✓` indicator. Saves to `auth.json` immediately. |
-| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete highlighted model · `f` — set as default (★) · `r` — rename display name |
+| `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; Ollama shows `✓ no key needed`. Saves to `auth.json` immediately. |
+| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
 
 **Binary subcommands (run from your terminal):**
 
@@ -215,6 +217,7 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 |-----|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | Insert newline |
+| `Ctrl+P` | Open `/models` switcher |
 | `Shift+Tab` | Cycle to next persona |
 | `Ctrl+C` | Exit |
 
@@ -237,6 +240,9 @@ models:
     provider: groq
     model: "llama-3.3-70b-versatile"
     context_length: 131072          # optional override if provider /models lacks it
+  - name: llama3.2                  # Ollama — no API key needed
+    provider: ollama
+    model: "llama3.2"
 
 default_persona: default            # filename prefix under prompts/
 
@@ -251,6 +257,8 @@ prompt_color: "#58A6FF"
 ```
 
 API keys are stored separately in `~/.local/share/openchat/auth.json` — managed automatically by `/connect`, never edit manually.
+
+**Ollama models** use `provider: ollama` and require no API key. The default base URL is `http://localhost:11434/v1`; override it via `/connect → Ollama`. Models are resolved live from the running server when you press `a` in `/models`.
 
 ### Personas
 

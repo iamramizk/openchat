@@ -51,10 +51,10 @@ export function StatusBar({
   const statusLabel = isStreaming ? "streaming" : "ready"
   const statusColor = isStreaming ? colors.greenBright : colors.textFaint
 
-  // Responsive hint: hide "shift+tab persona · ctrl+c exit" (and its │) on narrow terminals.
+  // Responsive hint: hide keybinding hints (and their │) on narrow terminals.
   // Each divider (│) occupies: gap(2) + char(1) + gap(2) = 5 cols; outer padding = 4 cols.
   // We estimate total required width and hide the hint if the terminal is too narrow.
-  const HINT = "shift+tab persona · ctrl+c exit"
+  const HINT = "ctrl+p models · shift+tab persona · ctrl+c exit"
   const modelDisplay = modelEntry?.name ?? ""
   const leftW = modelDisplay.length + personaTitle.length + 5 // model │ persona
   const statusStr = `${statusDot} ${statusLabel}`

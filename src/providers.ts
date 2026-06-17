@@ -7,6 +7,8 @@
 export interface ProviderDef {
   label: string
   base_url: string
+  /** If true the provider needs no API key (e.g. local Ollama). */
+  keyless?: boolean
 }
 
 export const PROVIDERS: Record<string, ProviderDef> = {
@@ -21,6 +23,11 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   openai: {
     label: "OpenAI",
     base_url: "https://api.openai.com/v1",
+  },
+  ollama: {
+    label: "Ollama",
+    base_url: "http://localhost:11434/v1",
+    keyless: true,
   },
 }
 

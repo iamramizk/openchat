@@ -1,6 +1,7 @@
 import type { SyntaxStyle, TreeSitterClient } from "@opentui/core"
 import { colors } from "../theme.ts"
 import type { ChatMessage } from "../types.ts"
+import { ThinkingIndicator } from "./ThinkingIndicator.tsx"
 
 interface Props {
   msg: ChatMessage
@@ -28,6 +29,9 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
       <text fg={roleColor} style={{ marginBottom: 1 }}>
         {roleLabel}
       </text>
+
+      {/* Thinking indicator — shown while reasoning tokens arrive, before answer text */}
+      {!isUser && msg.isThinking && <ThinkingIndicator />}
 
       {/* Message content */}
       {isUser ? (

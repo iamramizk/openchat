@@ -127,17 +127,18 @@ export function resolveConnection(
   const entry = config.models[modelIndex]
   if (!entry) return null
 
-  const creds = auth.providers[entry.provider]
-  if (!creds?.api_key) return null
-
   const providerDef = PROVIDERS[entry.provider]
-  const base_url = creds.base_url ?? providerDef?.base_url ?? ""
+  const keyless = providerDef?.keyless ?? false
+  const creds = auth.providers[entry.provider]
+  if (!keyless && !creds?.api_key) return null
+
+  const base_url = creds?.base_url ?? providerDef?.base_url ?? ""
   if (!base_url) return null
 
   return {
     providerName: entry.provider,
     base_url,
-    api_key: creds.api_key,
+    api_key: creds?.api_key ?? "",
     model: entry.model,
     contextLengthOverride: entry.context_length,
   }

@@ -15,6 +15,9 @@ models:
   - name: llama-3.3-70b
     provider: groq
     model: llama-3.3-70b-versatile
+  - name: gpt-oss:20b
+    provider: ollama
+    model: gpt-oss:20b
 default_persona: default
 colors:
   model: "#58A6FF"

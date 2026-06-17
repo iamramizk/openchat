@@ -64,3 +64,26 @@ export function setProviderKey(
   saveAuth(updated)
   return updated
 }
+
+/**
+ * Register a keyless provider (e.g. Ollama) with an optional base_url override.
+ * Stores api_key as "" so the entry exists in auth.json for base_url resolution.
+ * Persists immediately to auth.json.
+ */
+export function setProviderBaseUrl(
+  store: AuthStore,
+  providerName: string,
+  base_url: string,
+): AuthStore {
+  const updated: AuthStore = {
+    providers: {
+      ...store.providers,
+      [providerName]: {
+        api_key: "",
+        base_url,
+      },
+    },
+  }
+  saveAuth(updated)
+  return updated
+}

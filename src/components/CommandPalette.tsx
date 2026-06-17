@@ -1,9 +1,10 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import type { SelectOption } from "@opentui/core"
 import type { ModelEntry } from "../types.ts"
 import type { AuthStore } from "../auth.ts"
-import { PROVIDER_LIST } from "../providers.ts"
+import { PROVIDER_LIST, PROVIDERS } from "../providers.ts"
+import { fetchInstalledModels } from "../openrouter.ts"
 import { colors } from "../theme.ts"
 import { configFile, authFile } from "../paths.ts"
 
@@ -29,6 +30,7 @@ type ModelsMode =
   | "list"
   | "add-provider"
   | "add-model"
+  | "add-ollama-models"
   | "add-name"
   | "confirm-delete"
   | "rename"
@@ -53,6 +55,9 @@ export function ModelsModal({
   const [highlightIndex, setHighlightIndex] = useState(activeModelIndex)
   const [pendingProvider, setPendingProvider] = useState("")
   const [pendingModelId, setPendingModelId] = useState("")
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const [ollamaLoading, setOllamaLoading] = useState(false)
+  const [ollamaError, setOllamaError] = useState<string | null>(null)
 
   const modelIdRef = useRef<{ plainText?: string } | null>(null)
   const nameRef = useRef<{ plainText?: string } | null>(null)
@@ -78,11 +83,16 @@ export function ModelsModal({
       return
     }
 
-    if (mode === "add-provider" || mode === "add-model" || mode === "add-name") {
+    if (mode === "add-provider" || mode === "add-model" || mode === "add-ollama-models" || mode === "add-name") {
       if (key.name === "escape") {
-        if (mode === "add-name") setMode("add-model")
-        else if (mode === "add-model") setMode("add-provider")
-        else setMode("list")
+        if (mode === "add-name") {
+          // go back to model-id step (typed) or ollama pick-list
+          setMode(PROVIDERS[pendingProvider]?.keyless ? "add-ollama-models" : "add-model")
+        } else if (mode === "add-model" || mode === "add-ollama-models") {
+          setMode("add-provider")
+        } else {
+          setMode("list")
+        }
         return
       }
     }
@@ -114,7 +124,9 @@ export function ModelsModal({
 
   // ---- add: pick provider ----
   if (mode === "add-provider") {
-    const connectedProviders = PROVIDER_LIST.filter((p) => Boolean(auth.providers[p.id]?.api_key))
+    const connectedProviders = PROVIDER_LIST.filter(
+      (p) => Boolean(auth.providers[p.id]?.api_key) || Boolean(PROVIDERS[p.id]?.keyless),
+    )
     if (connectedProviders.length === 0) {
       return (
         <Overlay>
@@ -126,7 +138,7 @@ export function ModelsModal({
           >
             <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
               <text fg={colors.textMuted}>
-                {"No providers connected.\nRun /connect first to add API credentials."}
+                {"No providers connected.\nRun /connect to add API credentials, or add an Ollama model (no key needed)."}
               </text>
             </box>
           </ModalShell>
@@ -162,8 +174,97 @@ export function ModelsModal({
             focused
             onSelect={(_index: number, option: SelectOption | null) => {
               if (!option) return
-              setPendingProvider(option.value as string)
-              setMode("add-model")
+              const id = option.value as string
+              setPendingProvider(id)
+              if (PROVIDERS[id]?.keyless) {
+                // Fetch installed models from the local Ollama server
+                const savedBaseUrl = auth.providers[id]?.base_url ?? PROVIDERS[id].base_url
+                setOllamaModels([])
+                setOllamaError(null)
+                setOllamaLoading(true)
+                fetchInstalledModels(savedBaseUrl, "")
+                  .then((ids) => { setOllamaModels(ids); setOllamaLoading(false) })
+                  .catch((e: unknown) => {
+                    setOllamaError(e instanceof Error ? e.message : String(e))
+                    setOllamaLoading(false)
+                  })
+                setMode("add-ollama-models")
+              } else {
+                setMode("add-model")
+              }
+            }}
+          />
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
+  // ---- add: ollama installed-models pick-list ----
+  if (mode === "add-ollama-models") {
+    if (ollamaLoading) {
+      return (
+        <Overlay>
+          <ModalShell
+            title="/models · add · Ollama — fetching installed models…"
+            innerWidth={innerW}
+            bgColor={bgColor}
+            footer={configFile()}
+          >
+            <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
+              <text fg={colors.textMuted}>Contacting Ollama server…</text>
+            </box>
+          </ModalShell>
+        </Overlay>
+      )
+    }
+
+    if (ollamaError || ollamaModels.length === 0) {
+      return (
+        <Overlay>
+          <ModalShell
+            title="/models · add · Ollama — no models found · esc back"
+            innerWidth={innerW}
+            bgColor={bgColor}
+            footer={configFile()}
+          >
+            <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
+              <text fg={colors.yellow}>
+                {ollamaError
+                  ? `Error: ${ollamaError}`
+                  : "No models installed. Run: ollama pull <model>"}
+              </text>
+            </box>
+          </ModalShell>
+        </Overlay>
+      )
+    }
+
+    const ollamaOptions = ollamaModels.map((id) => ({ name: id, description: "", value: id }))
+    return (
+      <Overlay>
+        <ModalShell
+          title="/models · add · Ollama — pick model · esc back"
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={configFile()}
+        >
+          <select
+            options={ollamaOptions}
+            width={innerW}
+            height={Math.min(ollamaModels.length, 8) * 2}
+            backgroundColor={bgColor}
+            focusedBackgroundColor={bgColor}
+            selectedBackgroundColor={bgColor}
+            selectedTextColor={colors.text}
+            textColor={colors.textMuted}
+            descriptionColor={colors.textFaint}
+            selectedDescriptionColor={colors.textMuted}
+            showScrollIndicator
+            focused
+            onSelect={(_index: number, option: SelectOption | null) => {
+              if (!option) return
+              setPendingModelId(option.value as string)
+              setMode("add-name")
             }}
           />
         </ModalShell>
@@ -369,10 +470,11 @@ export function ModelsModal({
 
   // ---- main list ----
   const options = models.map((entry, idx) => {
+    const provDef = PROVIDERS[entry.provider]
     const hasKey = Boolean(auth.providers[entry.provider]?.api_key)
     const isDefault = idx === defaultModelIndex
     const descParts: string[] = [`${entry.provider} · ${entry.model}`]
-    if (!hasKey) descParts.push("(no key — run /connect)")
+    if (!hasKey && !provDef?.keyless) descParts.push("(no key — run /connect)")
     if (isDefault) descParts.push("★ default")
     return { name: entry.name, description: descParts.join("  "), value: entry.name }
   })
@@ -448,13 +550,18 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
   })
 
   if (step === "pick") {
-    const options = PROVIDER_LIST.map((p) => ({
-      name: p.label,
-      description: auth.providers[p.id]?.api_key
-        ? `${p.base_url}  ✓ key saved`
-        : p.base_url,
-      value: p.id,
-    }))
+    const options = PROVIDER_LIST.map((p) => {
+      let description: string
+      if (PROVIDERS[p.id]?.keyless) {
+        const savedUrl = auth.providers[p.id]?.base_url ?? p.base_url
+        description = `${savedUrl}  ✓ no key needed`
+      } else {
+        description = auth.providers[p.id]?.api_key
+          ? `${p.base_url}  ✓ key saved`
+          : p.base_url
+      }
+      return { name: p.label, description, value: p.id }
+    })
 
     return (
       <Overlay>
@@ -487,8 +594,72 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
     )
   }
 
-  // Step 2: key entry
+  // Step 2: key entry (keyed providers) or base-URL editor (keyless providers)
   const providerLabel = PROVIDER_LIST.find((p) => p.id === selectedProvider)?.label ?? selectedProvider
+  const isKeyless = PROVIDERS[selectedProvider]?.keyless ?? false
+
+  if (isKeyless) {
+    const defaultUrl = PROVIDERS[selectedProvider]?.base_url ?? "http://localhost:11434/v1"
+    const savedUrl = auth.providers[selectedProvider]?.base_url ?? defaultUrl
+
+    return (
+      <Overlay>
+        <ModalShell
+          title={`/connect · ${providerLabel}  enter save · esc back`}
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={authFile()}
+        >
+          <box
+            style={{
+              flexDirection: "column",
+              paddingLeft: 2,
+              paddingRight: 2,
+              paddingTop: 1,
+              paddingBottom: 1,
+              gap: 1,
+              width: innerW,
+            }}
+          >
+            <text fg={colors.textMuted}>
+              {`${providerLabel} needs no API key — it runs locally.`}
+            </text>
+            <text fg={colors.textFaint}>Base URL (enter to save, blank = default):</text>
+            <box
+              style={{
+                flexDirection: "row",
+                border: true,
+                borderStyle: "rounded",
+                borderColor: colors.border,
+                paddingLeft: 1,
+                paddingRight: 1,
+              }}
+            >
+              <textarea
+                ref={inputRef as React.Ref<any>}
+                height={1}
+                style={{ flexGrow: 1 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                placeholder={defaultUrl}
+                focused
+                keyBindings={[{ name: "return", action: "submit" }]}
+                onSubmit={() => {
+                  const text = (inputRef.current?.plainText ?? "").trim()
+                  // Pass the typed URL, or the existing saved URL, or the default
+                  onSave(selectedProvider, text || savedUrl || defaultUrl)
+                  onClose()
+                }}
+              />
+            </box>
+            <text fg={colors.textFaint}>{`Current: ${savedUrl}`}</text>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
   const existing = auth.providers[selectedProvider]?.api_key ?? ""
 
   return (

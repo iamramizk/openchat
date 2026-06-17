@@ -6,10 +6,14 @@ import type { ActiveConnection, ModelInfo, StreamChunk } from "./types.ts"
 // Falls back to entry override, then a sane default.
 // ---------------------------------------------------------------------------
 
+function authHeaders(apiKey: string): Record<string, string> {
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {}
+}
+
 export async function fetchModelInfo(conn: ActiveConnection): Promise<ModelInfo | null> {
   try {
     const res = await fetch(`${conn.base_url}/models`, {
-      headers: { Authorization: `Bearer ${conn.api_key}` },
+      headers: authHeaders(conn.api_key),
     })
     if (!res.ok) return null
 
@@ -73,7 +77,7 @@ export async function* streamCompletion(
   const res = await fetch(`${conn.base_url}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${conn.api_key}`,
+      ...authHeaders(conn.api_key),
       "Content-Type": "application/json",
       "HTTP-Referer": "https://github.com/openchat",
       "X-Title": "openchat",
@@ -115,7 +119,16 @@ export async function* streamCompletion(
         try {
           const json = JSON.parse(data) as {
             choices?: Array<{
-              delta?: { content?: string | null }
+              delta?: {
+                content?: string | null
+                // reasoning field variants across providers:
+                //   "reasoning"         — Ollama, OpenRouter
+                //   "reasoning_content" — DeepSeek native API
+                //   "thinking"          — some Anthropic-compatible wrappers
+                reasoning?: string | null
+                reasoning_content?: string | null
+                thinking?: string | null
+              }
               finish_reason?: string | null
             }>
             usage?: {
@@ -126,11 +139,13 @@ export async function* streamCompletion(
             }
           }
 
-          const delta = json.choices?.[0]?.delta?.content ?? ""
+          const d = json.choices?.[0]?.delta
+          const delta = d?.content ?? ""
+          const reasoning = d?.reasoning ?? d?.reasoning_content ?? d?.thinking ?? ""
           const usage = json.usage
 
-          if (delta || usage) {
-            yield { delta, usage, done: false }
+          if (delta || reasoning || usage) {
+            yield { delta, reasoning: reasoning || undefined, usage, done: false }
           }
         } catch {
           // skip malformed SSE lines
@@ -140,4 +155,18 @@ export async function* streamCompletion(
   } finally {
     reader.cancel()
   }
+}
+
+// ---------------------------------------------------------------------------
+// Fetch the list of installed model ids from an OpenAI-compatible /models
+// endpoint (used for the Ollama add-model flow).
+// ---------------------------------------------------------------------------
+
+export async function fetchInstalledModels(baseUrl: string, apiKey: string): Promise<string[]> {
+  const res = await fetch(`${baseUrl}/models`, {
+    headers: authHeaders(apiKey),
+  })
+  if (!res.ok) throw new Error(`/models returned ${res.status}`)
+  const data = (await res.json()) as { data: Array<{ id: string }> }
+  return data.data.map((m) => m.id).sort()
 }
