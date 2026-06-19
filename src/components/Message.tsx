@@ -9,6 +9,26 @@ interface Props {
   treeSitterClient: TreeSitterClient
 }
 
+// Mirrors the marker line produced by trimForDisplay() in App.tsx — rendered as a dim
+// inline span so it stands apart from the surrounding piped-input preview text.
+const HIDDEN_LINES_RE = /^… [\d,]+ lines hidden …$/m
+
+/** Split `text` around the (at most one) hidden-lines marker and dim it via a nested span. */
+function renderUserContent(text: string) {
+  const match = text.match(HIDDEN_LINES_RE)
+  if (!match || match.index === undefined) return text
+  const before = text.slice(0, match.index)
+  const marker = match[0]
+  const after = text.slice(match.index + marker.length)
+  return (
+    <>
+      {before}
+      <span fg={colors.textFaint}>{marker}</span>
+      {after}
+    </>
+  )
+}
+
 export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
   const isUser = msg.role === "user"
   const roleLabel = isUser ? "you" : "assistant"
@@ -36,17 +56,24 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
       {/* Message content */}
       {isUser ? (
         <text fg={colors.text} style={{ width: "100%" }}>
-          {msg.displayContent ?? msg.content ?? ""}
+          {renderUserContent(msg.displayContent ?? msg.content ?? "")}
         </text>
       ) : (
-        <markdown
-          content={msg.content || " "}
-          syntaxStyle={syntaxStyle}
-          treeSitterClient={treeSitterClient}
-          streaming={msg.isStreaming}
-          width="100%"
-          fg={colors.text}
-        />
+        <>
+          <markdown
+            content={msg.content || " "}
+            syntaxStyle={syntaxStyle}
+            treeSitterClient={treeSitterClient}
+            streaming={msg.isStreaming}
+            width="100%"
+            fg={colors.text}
+          />
+          {msg.stopped && (
+            <text fg={colors.textFaint} style={msg.content ? { marginTop: 1 } : undefined}>
+              ⏹ stopped
+            </text>
+          )}
+        </>
       )}
     </box>
   )

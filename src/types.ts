@@ -60,6 +60,8 @@ export interface ChatMessage {
   /** Display-only override for user messages with large piped payloads.
    *  Never sent to the model or replayed in conversation history. */
   displayContent?: string
+  /** True when an assistant reply was cut short by Esc — renders a dim "⏹ stopped" marker. */
+  stopped?: boolean
 }
 
 export interface ModelInfo {

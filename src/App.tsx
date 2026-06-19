@@ -326,7 +326,7 @@ export function App({
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
-              ? { ...m, content: `${m.content}\n\n⏹ stopped`, isStreaming: false, isThinking: false }
+              ? { ...m, stopped: true, isStreaming: false, isThinking: false }
               : m,
           ),
         )

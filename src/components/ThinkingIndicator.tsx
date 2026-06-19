@@ -10,7 +10,7 @@ import { colors } from "../theme.ts"
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 const FRAME_MS = 80
 
-const PREVIEW_MAX_LINES = 3
+const PREVIEW_MAX_LINES = 5
 // Only the tail of the reasoning text can ever be visible — cap how much we
 // re-wrap on every update to keep this cheap even for long-winded models.
 const PREVIEW_TAIL_CHARS = 2000
@@ -68,13 +68,16 @@ export function ThinkingIndicator({ reasoning }: Props) {
         {FRAMES[frame]} Thinking
       </text>
       {previewLines.length > 0 && (
-        <box style={{ flexDirection: "column" }}>
-          {previewLines.map((line, i) => (
-            <text key={i} fg={colors.textFaint}>
-              {line || " "}
-            </text>
-          ))}
-        </box>
+        <>
+          <text fg={colors.textFaint}> </text>
+          <box style={{ flexDirection: "column" }}>
+            {previewLines.map((line, i) => (
+              <text key={i} fg={colors.textFaint}>
+                {line || " "}
+              </text>
+            ))}
+          </box>
+        </>
       )}
     </box>
   )
