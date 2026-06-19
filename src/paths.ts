@@ -1,6 +1,6 @@
 import { homedir } from "os"
 import { join } from "path"
-import { mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync } from "fs"
+import { mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync, statSync } from "fs"
 import { BUNDLED_CONFIG, BUNDLED_PROMPTS, BUNDLED_WORKER_JS } from "./bundled-assets.ts"
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,13 @@ export function ensureDirectories(): void {
 // Returns the absolute path to the on-disk ts-worker.js that opentui should use.
 // ---------------------------------------------------------------------------
 
+/** Write `content` to `path` only if missing or its size differs from `content`'s. */
+function writeIfStale(path: string, content: string | Buffer): void {
+  const size = Buffer.byteLength(content)
+  if (existsSync(path) && statSync(path).size === size) return
+  writeFileSync(path, content)
+}
+
 export function ensureWorker(wasmSourcePath: string): string {
   const workerDir = join(dataDir(), "worker")
   mkdirSync(workerDir, { recursive: true })
@@ -80,9 +87,10 @@ export function ensureWorker(wasmSourcePath: string): string {
   const workerJsPath = join(workerDir, "ts-worker.js")
   const workerWasmPath = join(workerDir, "tree-sitter.wasm")
 
-  // Always overwrite — keeps the on-disk worker in sync with the running binary.
-  writeFileSync(workerJsPath, BUNDLED_WORKER_JS, "utf-8")
-  writeFileSync(workerWasmPath, readFileSync(wasmSourcePath))
+  // Skip the write when the on-disk file already matches — keeps the worker in
+  // sync with the running binary without paying redundant disk I/O on warm starts.
+  writeIfStale(workerJsPath, BUNDLED_WORKER_JS)
+  writeIfStale(workerWasmPath, readFileSync(wasmSourcePath))
 
   return workerJsPath
 }

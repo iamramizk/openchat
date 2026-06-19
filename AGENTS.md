@@ -1,19 +1,15 @@
 # openchat
 
-A simplified, non-agentic Terminal User Interface (TUI) for chatting with any OpenAI-compatible LLM provider, leveraging the `opentui` skill.
+Non-agentic terminal chat UI for OpenAI-compatible LLM providers (OpenRouter, Groq, OpenAI,
+Ollama, or any custom OpenAI-compatible endpoint). Built with Bun + `@opentui/react` (React 19
+TUI, native FFI renderer). No file access, no shell execution — pure chat.
 
-## Project Goal
+## Tech Stack
 
-To create a lightweight, streamlined terminal interface that facilitates fast, direct communication with LLM providers (OpenRouter, Groq, OpenAI, Ollama, or any OpenAI-compatible endpoint) without agentic workflows. The interface mimics the visual aesthetic of `opencode` but in a vastly simplified manner, focusing strictly on clear chat presentation and real-time session statistics.
-
-## Tech Stack & Dependencies
-
-- **UI/Layout Skill:** `anomalyco/opentui` (installed locally at `.agents/skills/opentui/`)
-- **Runtime:** **Bun** (opentui's renderer requires native FFI; Bun provides this out of the box)
-- **UI Framework:** `@opentui/react` (React 19 + JSX bindings for opentui)
-- **API Providers:** OpenRouter, Groq, OpenAI, Ollama (all OpenAI-compatible). Ollama is keyless — no API key required; it runs locally at `http://localhost:11434/v1` by default.
-- **Language:** TypeScript
-- **Key Packages:** `yaml` (config parsing), native `fetch` (streaming SSE requests)
+- Runtime: **Bun** (required — opentui's renderer uses native FFI; Bun ships this, Node doesn't without `--experimental-ffi`)
+- UI: `@opentui/react` (peer-depends on React ≥ 19.2)
+- Language: TypeScript
+- `yaml` for config parsing; native `fetch` for SSE streaming
 
 ## Running
 
@@ -21,135 +17,55 @@ To create a lightweight, streamlined terminal interface that facilitates fast, d
 bun run start
 ```
 
-On first run, the app seeds `~/.config/openchat/config.yaml` by **cloning the bundled
-`config.example.yaml`** and copies the bundled `prompts/` directory to
-`~/.config/openchat/prompts/`. Edit those files to customise the app. Use `/connect` in
-the TUI to add API credentials for the providers referenced in the config.
+First run seeds `~/.config/openchat/config.yaml` (cloned from `config.example.yaml`) and
+`~/.config/openchat/prompts/`. Use `/connect` in the TUI to add credentials. Ollama needs no
+`/connect` step — keyless, defaults to `http://localhost:11434/v1`.
 
-**Ollama** is keyless — any model with `provider: ollama` in `config.yaml` works
-immediately as long as the Ollama server is running (`ollama serve`). No `/connect` step
-is needed unless you want to override the default base URL (`http://localhost:11434/v1`).
+Pipe input: `cat file | bun run start` — stdin is drained to EOF before the renderer boots
+(`!process.stdin.isTTY` guard in `index.tsx`), then `/dev/tty` is reopened so the keyboard stays live.
 
-Press `Ctrl+C` to exit.
-
-You can also pipe command or file output directly into a session:
+## Building & Releasing
 
 ```bash
-cat error.log | bun run start
-git diff | bun run start
+bun run build:mac          # dist/openchat-darwin-arm64
+bun run build:linux-x64    # dist/openchat-linux-x64
+bun run build:linux-arm64  # dist/openchat-linux-arm64
 ```
 
-Stdin is drained to EOF before the renderer boots (`!process.stdin.isTTY` guard), then `/dev/tty` is reopened and passed via `createCliRenderer({ stdin })` so the keyboard stays interactive.
+- Requires Bun ≥ 1.2 (1.1.x mis-bundles opentui's native FFI dylib wrapper).
+- Linux cross-compile from macOS is **not supported** — opentui FFI must compile on the target
+  OS. CI (`.github/workflows/release.yml`) uses native runners (macos-14, ubuntu-22.04,
+  ubuntu-24.04-arm) on every `v*.*.*` tag push. macOS x64 is not built (runner queue times).
+- Release: `git tag v0.1.0 && git push --tags`. Tag must match `package.json` `version`.
+- `dist/` is gitignored. First-run seeding behaves identically in the compiled binary (assets
+  embedded — see `LEARNINGS.md`).
 
-## Building a Standalone Binary
+## Config & Secrets
 
-Requires **Bun ≥ 1.2** (native FFI packaging in the bundler was fixed in 1.2; 1.1.x generates invalid output for the opentui dylib wrapper).
+| Path | Purpose |
+|---|---|
+| `~/.config/openchat/config.yaml` | Models list, colours, default persona, prompt char — see `config.example.yaml` for shape, `types.ts` (`Config`/`ModelEntry`) for the parsed form |
+| `~/.config/openchat/prompts/` | Persona prompt files, copied from repo `prompts/` once on first run — editing the repo copy has no effect on existing installs |
+| `~/.local/share/openchat/auth.json` | Per-provider credentials (`0600`) — see `auth.ts` (`ProviderCredential`) for the shape |
 
-```bash
-bun run build:mac          # dist/openchat-darwin-arm64  (macOS Apple Silicon)
-bun run build:linux-x64    # dist/openchat-linux-x64     (Linux x64)
-bun run build:linux-arm64  # dist/openchat-linux-arm64   (Linux ARM)
-```
+Both dirs respect `$XDG_CONFIG_HOME` / `$XDG_DATA_HOME`. `/models` add/delete/rename rewrites
+`config.yaml` via `saveConfig()` — **comments are stripped on first rewrite** (expected).
 
-The binary is fully self-contained: no Bun installation required on the target machine.
-`dist/` is in `.gitignore`.
+**Custom providers:** a provider added via `/connect → a` is *not* in the hardcoded `PROVIDERS`
+registry — it's persisted as an `auth.json` credential with extra fields: `label` (display
+name), `keyless` (true if `api_key` was left empty), `custom: true` (marks it deletable).
+`providers.ts`'s `effectiveProviders()` / `effectiveProviderList()` merge these with the
+built-ins at every call site; `resolveConnection()` (`config.ts`) reads `keyless` from either
+source.
 
-**First-run behaviour is identical to `bun run start`:** on the first launch,
-`~/.config/openchat/config.yaml` and all persona prompts are seeded from assets
-embedded in the binary. Subsequent launches read the user's copies only.
+**Ollama zero-config:** with no `auth.json` entry at all, `resolveConnection` falls back to
+`PROVIDERS.ollama.base_url`.
 
-**Linux cross-compilation from macOS is not supported** — opentui's native FFI bindings
-must be compiled on the target OS. The CI release workflow (`.github/workflows/release.yml`)
-handles this automatically using native runners for each platform (macos-14,
-ubuntu-22.04, ubuntu-24.04-arm). macOS x64 (Intel, macos-13) is not supported —
-queue times for that runner are prohibitively slow; Apple Silicon covers all
-current Mac hardware. To cut a release, push a `v*.*.*` tag.
-
-### Releasing
-
-```bash
-git tag v0.1.0 && git push --tags   # triggers .github/workflows/release.yml
-```
-
-This publishes a GitHub Release with 4 native binaries and a `checksums.txt` file.
-The version tag must match `package.json` `version` (without the leading `v`).
-
-## Config & Secrets Locations
-
-| Path                                | Purpose                                                             |
-| ----------------------------------- | ------------------------------------------------------------------- |
-| `~/.config/openchat/config.yaml`    | App preferences: models list, colours, default persona, prompt char |
-| `~/.config/openchat/prompts/`       | Persona prompt files (copied from repo `prompts/` on first run)     |
-| `~/.local/share/openchat/auth.json` | API credentials per provider (`0600` permissions)                   |
-
-Both dirs respect `$XDG_CONFIG_HOME` / `$XDG_DATA_HOME` overrides.
-
-**The repo `prompts/` directory is the bundled seed** — it is copied once to the user
-config dir on first run. Editing it in the repo has no effect on an existing install.
-
-### config.yaml shape
-
-```yaml
-default_model: deepseek # name of an entry in models[]; falls back to first
-models:
-  - name: deepseek # display name used in /models and status bar
-    provider: openrouter # must match a provider key in auth.json
-    model: "deepseek/deepseek-v4-flash:nitro"
-  - name: gpt-oss
-    provider: groq
-    model: "openai/gpt-oss-20b"
-    context_length: 131072 # optional override when provider /models lacks it
-default_persona: default
-colors:
-  model: "#58A6FF" # default blue palette
-  persona: "#79C0FF"
-  cost: "#A5D6FF"
-  popup: "#161B22" # background colour for /models, /connect, and slash-suggestion popup
-prompt_char: ">"
-prompt_color: "#58A6FF"
-```
-
-New installs are seeded from `config.example.yaml`, which ships a set of example models with no
-saved API keys. Run `/connect` to add credentials for each provider, then use `/models` to switch
-between them. You can add, delete, or change the default model entirely from within the TUI (`a` /
-`d` / `f`), or edit `config.yaml` directly.
-
-**Note:** When models are added or deleted via the in-TUI `/models` commands (`a`/`d`), `config.yaml` is
-rewritten by `saveConfig()`. Comments in the file are stripped on first rewrite — this is expected.
-
-### auth.json shape (managed by /connect — do not edit manually)
-
-```json
-{
-  "providers": {
-    "openrouter": {
-      "api_key": "sk-or-...",
-      "base_url": "https://openrouter.ai/api/v1"
-    },
-    "groq": {
-      "api_key": "gsk_...",
-      "base_url": "https://api.groq.com/openai/v1"
-    },
-    "ollama": {
-      "api_key": "",
-      "base_url": "http://localhost:11434/v1"
-    }
-  }
-}
-```
-
-**Ollama zero-config:** if no `ollama` entry exists in `auth.json` at all, `resolveConnection` falls back to the default base URL from the provider registry (`http://localhost:11434/v1`). You only need to run `/connect → Ollama` if you want to override the host/port.
-
-## Interface Design (The Layout)
-
-Three-region vertical layout:
+## Layout
 
 ```
 ┌──────────────────────────────────┐
-│                                  │
 │   Chat Pane  (flexGrow: 1)       │  <scrollbox stickyScroll bottom>
-│   <markdown> streaming renders   │
-│                                  │
 ├──────────────────────────────────┤
 │   Input Bar  (height: 3)         │  <textarea> — Enter to send
 ├──────────────────────────────────┤
@@ -157,86 +73,95 @@ Three-region vertical layout:
 └──────────────────────────────────┘
 ```
 
-- **Chat Pane:** `<scrollbox>` with sticky-bottom scroll. Assistant messages render via `<markdown streaming>` for token-by-token output with full syntax highlighting. The vertical scrollbar is fully hidden from layout (no column gutter reserved) via a mount-time `verticalScrollBar.visible = false`; wheel and keyboard scrolling remain functional.
-- **Input Bar:** Multi-line `<textarea>` — Enter sends, Shift+Enter inserts newline, input clears automatically. Disabled while streaming or a modal is open. Typing `/` shows a floating autosuggestion popup listing available commands above the input bar. When stdin was piped, a right-aligned ` piped input · N chars ` title appears on the box border (in the muted ctx colour) and clears after the first send.
-- **Status Bar:** 1-row footer showing: active model name · active persona · streaming/ready indicator · context window % (with token count when > 0, e.g. `ctx: 10% 13k`) · cumulative session cost · keybinding hints (`ctrl+p models · shift+tab persona · ctrl+c exit`) — the hints and their preceding `│` divider auto-hide on narrow terminals (computed via `useTerminalDimensions()`) to keep the bar readable.
-  - When no model is configured: shows `no model configured` in blue + `/connect`/`/models` guidance.
+- **Chat Pane:** assistant turns render via `<markdown streaming treeSitterClient>`. Vertical
+  scrollbar is fully hidden from layout via a mount-time `verticalScrollBar.visible = false`
+  (wheel/keyboard scroll still works).
+- **Input Bar:** Enter sends, Shift+Enter newline, auto-clears. Disabled while streaming or a
+  modal is open. `/` triggers a floating autosuggestion popup. Piped input shows a
+  ` piped input · N chars ` border title until first send.
+- **Status Bar:** model · persona · status · `ctx: N% Tk` · cost · keybinding hints — hints
+  auto-hide on narrow terminals (`useTerminalDimensions()`). No-model state shows blue
+  `/connect`/`/models` guidance.
 
-## Core Functional Requirements
+## Core Behaviour
 
-- **Streaming Responses:** Token-by-token output via OpenAI-compatible SSE (`stream: true`, `stream_options: { include_usage: true }`). The `stream_options` field is the OpenAI-standard way to request streaming usage; the former `usage: { include: true }` was OpenRouter-proprietary and rejected by Groq/OpenAI. `streamCompletion` also surfaces reasoning tokens from the `delta.reasoning` / `delta.reasoning_content` / `delta.thinking` field (whichever the provider emits) as `StreamChunk.reasoning`.
-- **Thinking Indicator:** When a reasoning-capable model (e.g. Ollama gpt-oss, DeepSeek-R1, OpenAI o-series) emits reasoning tokens before the answer, an animated braille spinner (`⠋ Thinking`) appears in the assistant message. It disappears the moment the first answer token arrives. Implemented via `ChatMessage.isThinking` + `ThinkingIndicator.tsx` (animated `setInterval` cycling braille frames at 80 ms).
-- **Slash Commands:** `/models` and `/connect` open modal overlays. Any other `/x` input shows an error toast. Plain text is sent to the model.
-- **Ctrl+P shortcut:** Opens the `/models` modal from anywhere (no typing `/models` required). Works in all terminals including legacy raw-mode terminals (collision-free unlike Ctrl+M).
-- **State Management:** Full conversation history maintained in React state for ongoing context.
-- **Context Tracking:** Accumulated from `usage.total_tokens` returned per completed turn; denominator from the provider's `/models` endpoint. Accepts both `context_length` (OpenRouter) and `context_window` (Groq); optional per-entry override in config.yaml.
-- **Cost Tracking:** Accumulated from `usage.cost` in the final SSE chunk (OpenRouter only). Shows `—`/`$0` for providers that don't report cost.
-- **Persona Cycling:** **Shift+Tab** cycles through personas at runtime. Conversation history is preserved; only the system prompt changes on the next turn. The active persona is shown in the status bar.
-- **Auto-copy:** Mouse-drag selection automatically copies the selected text to the system clipboard (OSC 52 primary; `pbcopy` / `wl-copy` / `xclip` fallback per platform). A transient `✓ copied to clipboard` toast confirms each copy.
-- **Piped stdin:** When launched via a pipe (`cat file | openchat`), stdin is drained to EOF before `createCliRenderer` (guarded on `!process.stdin.isTTY`). `/dev/tty` is then opened with `new ReadStream(openSync("/dev/tty", "r"))` and passed via the `stdin` config override so the keyboard stays live. The stream is `.unref()`d immediately and `.destroy()`d in the `onDestroy` callback so Ctrl+C exits in one press (opentui calls only `.pause()` on its stdin — a custom ReadStream would otherwise keep the event loop alive). On send, piped content is composed before the typed query wrapped in `<piped-input>…</piped-input>` XML tags (full payload sent to the model and preserved in history). The chat pane shows a trimmed preview via `ChatMessage.displayContent` (top 10 + bottom 10 lines with `… N lines hidden …`) while `content` holds the full text for the API.
+- **Streaming:** SSE via `stream: true` + `stream_options: { include_usage: true }`
+  (OpenAI-standard — do not use OpenRouter's deprecated `usage: { include: true }`, Groq/OpenAI
+  reject it). `streamCompletion()` (`openrouter.ts`) also yields reasoning tokens
+  (`delta.reasoning` / `reasoning_content` / `thinking`, whichever the provider emits) as
+  `StreamChunk.reasoning`.
+- **Stop streaming:** `Esc` while streaming aborts via `AbortController`
+  (`App.tsx` `abortControllerRef`, passed into `streamCompletion(..., signal)`). Partial text is
+  kept with a `⏹ stopped` marker appended. Idle `Esc` exits, same as `Ctrl+C`.
+- **Thinking indicator:** while reasoning tokens arrive and `content === ""`,
+  `ChatMessage.isThinking` is true. `ThinkingIndicator.tsx` shows a `⠋ Thinking` braille spinner
+  plus a live, word-wrapped 3-line tail of `ChatMessage.reasoning` (`tailWrap()`, capped to the
+  last 2000 chars). Both disappear on the first answer token.
+- **Slash commands:** `/models`, `/connect` open modals; any other `/x` shows an error toast; `/`
+  or a partial prefix (`/mod`, `/con`) shows the autosuggestion popup, prefix+Enter opens the modal.
+- **Ctrl+P:** opens `/models` from anywhere — avoids Ctrl+M's collision with `\r` in non-kitty terminals.
+- **Context/cost tracking:** accumulated from `usage.total_tokens` / `usage.cost` per turn.
+  Context denominator accepts `context_length` (OpenRouter) or `context_window` (Groq), or the
+  per-entry `context_length` override in `config.yaml`. Cost shows `—`/`$0` for providers that
+  don't report it.
+- **Persona cycling:** `Shift+Tab` swaps the system prompt for the next turn only — history is preserved.
+- **Auto-copy:** mouse-drag selection copies via OSC 52 (fallback `pbcopy`/`wl-copy`/`xclip`),
+  with a transient toast.
+- **Piped stdin:** composed before the typed query inside `<piped-input>…</piped-input>` tags
+  (full payload sent + kept in history); chat pane shows a trimmed top/bottom-10-line preview via
+  `ChatMessage.displayContent`.
+- **Startup:** tree-sitter init (`ensureWorker()` + `addDefaultParsers()` +
+  `treeSitterClient.initialize()`) is deferred to a fire-and-forget IIFE *after*
+  `createRoot(...).render(...)` so first paint isn't blocked; failures are caught and only
+  disable syntax highlighting. `ensureWorker()` skips rewriting the on-disk worker files
+  (`writeIfStale()`) when their size already matches.
 
 ## In-TUI Commands
 
-| Command    | Action                                                                                                                                                                                                                   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/connect` | Opens a two-step modal: (1) pick a provider from the registry, (2) enter your API key — or, for **keyless providers** (Ollama), edit the base URL instead (pre-filled with the default). Saves to `auth.json` immediately. Already-saved keys shown with `✓ key saved`; keyless providers show `✓ no key needed`. Footer shows the `auth.json` path. |
-| `/models`  | Opens a modal listing all entries from `models[]` in `config.yaml`. Keys: **enter** — switch active model; **a** — add a new model (provider → model-id → display name, writes to `config.yaml`); for **Ollama**, the model-id step is replaced by a live pick-list fetched from the running server. **d** — delete highlighted model (confirm with `d`/`y`); **f** — set highlighted model as the boot default (★); **r** — rename the highlighted model's display name. Entries missing a key are marked `(no key — run /connect)`; keyless models are never marked. Footer shows the `config.yaml` path. |
-
-Typing `/` or a partial command (e.g. `/m`, `/co`) in the input bar shows a floating autosuggestion list above the input. Partial prefix submission works: `/mod`+Enter opens `/models`, `/con`+Enter opens `/connect`.
+| Command | Action |
+|---|---|
+| `/connect` | Pick a provider → enter API key, or base-URL editor for keyless providers. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank); `d` — delete a custom provider (confirm `d`/`y`; built-ins can't be deleted). Saves to `auth.json` immediately. |
+| `/models` | List `models[]` from `config.yaml`. `enter` switch · `a` add (provider → model-id → name; Ollama gets a live install pick-list, every other provider — including custom ones — uses manual id entry) · `d` delete (confirm) · `f` set default (★) · `r` rename. Writes `config.yaml` immediately. |
 
 ## Source Layout
 
 ```
 src/
-  index.tsx             # entry: bootstrap, read piped stdin (pre-renderer) + open /dev/tty, load config + auth + personas, init tree-sitter, createRoot + <App>
-  config.ts             # loadConfig() (XDG path), saveConfig() (writes config.yaml), resolveConnection()
-  auth.ts               # loadAuth(), saveAuth(), setProviderKey(), setProviderBaseUrl() (keyless providers)
-  paths.ts              # XDG path helpers: configDir/dataDir/configFile/authFile/promptsDir + ensureDirectories() + ensureWorker() (uses BUNDLED_* constants)
-  bundled-assets.ts     # seed content + pre-built worker JS embedded via `with { type: "text" }` — safe in compiled binary (see LEARNINGS.md)
-  assets.d.ts           # `declare module "*.md"` so TypeScript accepts the text-import attributes
-  providers.ts          # PROVIDERS registry: openrouter | groq | openai | ollama + PROVIDER_LIST; ProviderDef.keyless flag
+  index.tsx             # entry: bootstrap, piped-stdin pre-renderer drain + /dev/tty reopen, load config/auth/personas, createRoot + <App>; tree-sitter init deferred past first paint
+  config.ts             # loadConfig() (XDG), saveConfig(), resolveConnection() — keyless from PROVIDERS or creds
+  auth.ts               # loadAuth/saveAuth, setProviderKey/setProviderBaseUrl (preserve existing fields), setCustomProvider/removeProvider
+  paths.ts              # XDG path helpers + ensureDirectories() + ensureWorker() (writeIfStale — skips rewrite if unchanged)
+  bundled-assets.ts     # seed content + pre-built worker JS, embedded via `with { type: "text" }` (safe in compiled binary — see LEARNINGS.md)
+  assets.d.ts           # `declare module "*.md"` for text-import attributes
+  providers.ts          # PROVIDERS registry (openrouter/groq/openai/ollama) + effectiveProviders/effectiveProviderList/isCustomProvider/uniqueProviderId (merge in custom providers from auth.json)
   personas.ts           # loadPersonas() + composeSystemPrompt()
-  openrouter.ts         # fetchModelInfo(conn) + streamCompletion(conn, …) + fetchInstalledModels(baseUrl, apiKey) — takes ActiveConnection
-  types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (+ displayContent), ModelInfo, SessionStats, StreamChunk
+  openrouter.ts         # fetchModelInfo(conn), streamCompletion(conn, messages, systemPrompt, signal), fetchInstalledModels(baseUrl, apiKey)
+  types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (isThinking/reasoning/displayContent), ModelInfo, SessionStats, StreamChunk
   theme.ts              # color palette + SyntaxStyle for <markdown>
-  parsers.ts            # EXTRA_PARSERS: FiletypeParserOptions[] for addDefaultParsers()
-  bun-worker-shim.ts    # Bun worker compat shim — polyfills globalThis.close then imports @opentui/core/parser.worker
+  parsers.ts            # EXTRA_PARSERS for addDefaultParsers()
+  bun-worker-shim.ts    # Bun worker compat shim (polyfills globalThis.close, imports @opentui/core/parser.worker)
   worker/               # pre-built worker sidecar (committed; regenerate with `bun run build:worker`)
-    bun-worker-shim.js  # standalone worker bundle (~198KB) generated by build:worker; embedded as text in bundled-assets.ts
-    tree-sitter.wasm    # web-tree-sitter runtime (~201KB); embedded via `with { type: "file" }` in index.tsx
-  App.tsx               # root component: state, command dispatch, modal state, connection resolution; pipedContent state + trimForDisplay() compose on send
+    bun-worker-shim.js
+    tree-sitter.wasm
+  App.tsx               # root: state, command dispatch, modal state, connection resolution, abortControllerRef (Esc-to-stop), custom-provider/model add-delete-rename handlers
   components/
     ChatPane.tsx        # <scrollbox> + message list
-    Message.tsx         # single turn (user text or assistant <markdown streaming treeSitterClient>); renders displayContent ?? content for user turns
-    InputBar.tsx        # <textarea> with submit + clear; disabled while modal open; shows piped-input border title when attached
-    StatusBar.tsx           # model · persona · status · ctx% · cost; no-model state (blue accent)
-    Toast.tsx               # transient "✓ copied to clipboard" floating overlay
-    ThinkingIndicator.tsx   # animated braille spinner (⠋ Thinking) shown while isThinking; setInterval 80ms cycling FRAMES[]
-    CommandPalette.tsx      # /models (ModelsModal) + /connect (ConnectModal) — borderless overlays, colors.popup background
-    CommandSuggestions.tsx  # floating slash-command autosuggestion popup above input bar — borderless, colors.popup background
+    Message.tsx         # one turn; renders displayContent ?? content for user turns
+    InputBar.tsx        # <textarea> submit/clear; piped-input border title
+    StatusBar.tsx       # model · persona · status · ctx% · cost
+    Toast.tsx           # transient copy-confirmation overlay
+    ThinkingIndicator.tsx  # braille spinner + scrolling reasoning preview (tailWrap, 80ms frame interval)
+    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines
+    CommandSuggestions.tsx  # floating slash-command autosuggestion popup
 prompts/                # bundled seed — copied to ~/.config/openchat/prompts/ on first run
-  _global.md            # base preamble prepended to every persona (not cycled)
-  0-default.md          # General Assistant
-  1-hacker.md           # Kali Linux & Cybersecurity Researcher
-  2-developer.md        # Senior Software Engineer & Architect
-  3-writer.md           # Copywriter & Editor
-scripts/                # standalone shell scripts; also embedded in the binary via bundled-assets.ts
-  install.sh            # curl-bootstrap installer: detects OS/arch, downloads binary, verifies SHA256, installs to ~/.local/bin
-  update.sh             # checks GitHub releases API, downloads newer binary if available, atomically replaces existing
-  uninstall.sh          # lists all created paths (warns about auth.json API keys), prompts [y/N], removes
-config.example.yaml     # canonical example config (no secrets); also cloned verbatim as the first-run seed
-.github/
-  workflows/
-    release.yml         # tag-triggered CI: builds all 4 native binaries + checksums.txt, publishes GitHub Release
-  assets/               # logo (dark + light) and screenshots for README
+  _global.md, 0-default.md, 1-hacker.md, 2-developer.md, 3-writer.md
+scripts/                # install.sh / update.sh / uninstall.sh — also embedded in the binary
+config.example.yaml     # canonical example config (no secrets); cloned verbatim as the first-run seed
+.github/workflows/release.yml  # tag-triggered CI: 4 native binaries + checksums.txt
 ```
 
-## Knowledge Handoff & Memory
+## Knowledge Handoff
 
-Significant findings, architectural shifts, and non-obvious fixes must be documented in `LEARNINGS.md` to ensure continuity across development sessions.
-
-### Rules for Updating `LEARNINGS.md`
-
-- **Threshold for Entry:** Only log major architectural changes, structural shifts, or non-obvious technical discoveries (e.g., handling specific streaming quirks with OpenRouter, or undocumented `opentui` layout behaviours). Do not log trivial bug fixes or routine code updates.
-- **Format:** Append entries to the bottom of the file using a clean list format with the current date, a concise headline, the context of the problem, and the concrete takeaway or solution.
-- **Timing:** Update `LEARNINGS.md` immediately after completing a significant implementation phase or resolving a complex issue before concluding the session.
+Log major architectural shifts and non-obvious discoveries in `LEARNINGS.md` (not trivial
+fixes). Append-only, dated entries: headline, context, concrete takeaway. Update before ending
+a significant implementation phase.

@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import type { SelectOption } from "@opentui/core"
 import type { ModelEntry } from "../types.ts"
 import type { AuthStore } from "../auth.ts"
-import { PROVIDER_LIST, PROVIDERS } from "../providers.ts"
+import { effectiveProviderList, effectiveProviders, isCustomProvider } from "../providers.ts"
 import { fetchInstalledModels } from "../openrouter.ts"
 import { colors } from "../theme.ts"
 import { configFile, authFile } from "../paths.ts"
@@ -86,8 +86,8 @@ export function ModelsModal({
     if (mode === "add-provider" || mode === "add-model" || mode === "add-ollama-models" || mode === "add-name") {
       if (key.name === "escape") {
         if (mode === "add-name") {
-          // go back to model-id step (typed) or ollama pick-list
-          setMode(PROVIDERS[pendingProvider]?.keyless ? "add-ollama-models" : "add-model")
+          // go back to model-id step (typed) or, for built-in Ollama, the install pick-list
+          setMode(pendingProvider === "ollama" ? "add-ollama-models" : "add-model")
         } else if (mode === "add-model" || mode === "add-ollama-models") {
           setMode("add-provider")
         } else {
@@ -124,8 +124,9 @@ export function ModelsModal({
 
   // ---- add: pick provider ----
   if (mode === "add-provider") {
-    const connectedProviders = PROVIDER_LIST.filter(
-      (p) => Boolean(auth.providers[p.id]?.api_key) || Boolean(PROVIDERS[p.id]?.keyless),
+    const providers = effectiveProviders(auth)
+    const connectedProviders = effectiveProviderList(auth).filter(
+      (p) => Boolean(auth.providers[p.id]?.api_key) || Boolean(providers[p.id]?.keyless),
     )
     if (connectedProviders.length === 0) {
       return (
@@ -176,9 +177,9 @@ export function ModelsModal({
               if (!option) return
               const id = option.value as string
               setPendingProvider(id)
-              if (PROVIDERS[id]?.keyless) {
+              if (id === "ollama") {
                 // Fetch installed models from the local Ollama server
-                const savedBaseUrl = auth.providers[id]?.base_url ?? PROVIDERS[id].base_url
+                const savedBaseUrl = auth.providers[id]?.base_url ?? providers[id].base_url
                 setOllamaModels([])
                 setOllamaError(null)
                 setOllamaLoading(true)
@@ -190,6 +191,8 @@ export function ModelsModal({
                   })
                 setMode("add-ollama-models")
               } else {
+                // Built-in keyed/keyless providers and any custom provider all use
+                // manual model-id entry — only Ollama has a live install pick-list.
                 setMode("add-model")
               }
             }}
@@ -275,7 +278,7 @@ export function ModelsModal({
   // ---- add: enter model id ----
   if (mode === "add-model") {
     const providerLabel =
-      PROVIDER_LIST.find((p) => p.id === pendingProvider)?.label ?? pendingProvider
+      effectiveProviderList(auth).find((p) => p.id === pendingProvider)?.label ?? pendingProvider
 
     return (
       <Overlay>
@@ -469,8 +472,9 @@ export function ModelsModal({
   }
 
   // ---- main list ----
+  const providers = effectiveProviders(auth)
   const options = models.map((entry, idx) => {
-    const provDef = PROVIDERS[entry.provider]
+    const provDef = providers[entry.provider]
     const hasKey = Boolean(auth.providers[entry.provider]?.api_key)
     const isDefault = idx === defaultModelIndex
     const descParts: string[] = [`${entry.provider} · ${entry.model}`]
@@ -528,31 +532,63 @@ interface ConnectModalProps {
   auth: AuthStore
   bgColor: string
   onSave: (providerName: string, apiKey: string) => void
+  onAddCustom: (def: { label: string; base_url: string; api_key: string }) => void
+  onDeleteProvider: (providerId: string) => void
   onClose: () => void
 }
 
-export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalProps) {
+type ConnectStep = "pick" | "key" | "add-name" | "add-url" | "add-key" | "confirm-delete"
+
+export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvider, onClose }: ConnectModalProps) {
   const { width } = useTerminalDimensions()
   const innerW = Math.min(64, Math.max(40, width - 4))
 
-  const [step, setStep] = useState<"pick" | "key">("pick")
+  const [step, setStep] = useState<ConnectStep>("pick")
   const [selectedProvider, setSelectedProvider] = useState<string>("")
+  const [highlightIndex, setHighlightIndex] = useState(0)
+  const [pendingName, setPendingName] = useState("")
+  const [pendingUrl, setPendingUrl] = useState("")
   const inputRef = useRef<{ plainText?: string } | null>(null)
+  const nameRef = useRef<{ plainText?: string } | null>(null)
+  const urlRef = useRef<{ plainText?: string } | null>(null)
+  const keyRef = useRef<{ plainText?: string } | null>(null)
+
+  const providerList = effectiveProviderList(auth)
+  const highlighted = providerList[highlightIndex]
 
   useKeyboard((key) => {
-    if (key.name === "escape") {
-      if (step === "key") {
-        setStep("pick")
-      } else {
-        onClose()
+    if (step === "pick") {
+      if (key.name === "escape") { onClose(); return }
+      if (key.name === "a") { setPendingName(""); setPendingUrl(""); setStep("add-name"); return }
+      if (key.name === "d" && highlighted && isCustomProvider(auth, highlighted.id)) {
+        setStep("confirm-delete")
+        return
       }
+      return
+    }
+
+    if (step === "confirm-delete") {
+      if (key.name === "d" || key.name === "y") {
+        onDeleteProvider(highlighted.id)
+        setHighlightIndex(0)
+      }
+      // any other key (including esc) cancels
+      setStep("pick")
+      return
+    }
+
+    if (key.name === "escape") {
+      if (step === "key") setStep("pick")
+      else if (step === "add-key") setStep("add-url")
+      else if (step === "add-url") setStep("add-name")
+      else if (step === "add-name") setStep("pick")
     }
   })
 
   if (step === "pick") {
-    const options = PROVIDER_LIST.map((p) => {
+    const options = providerList.map((p) => {
       let description: string
-      if (PROVIDERS[p.id]?.keyless) {
+      if (p.keyless) {
         const savedUrl = auth.providers[p.id]?.base_url ?? p.base_url
         description = `${savedUrl}  ✓ no key needed`
       } else {
@@ -560,13 +596,14 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
           ? `${p.base_url}  ✓ key saved`
           : p.base_url
       }
+      if (isCustomProvider(auth, p.id)) description += "  · custom"
       return { name: p.label, description, value: p.id }
     })
 
     return (
       <Overlay>
         <ModalShell
-          title="/connect  ↑↓ navigate · enter select · esc cancel"
+          title="/connect  ↑↓ navigate · enter select · a add custom · d delete · esc cancel"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={authFile()}
@@ -574,7 +611,7 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
           <select
             options={options}
             width={innerW}
-            height={PROVIDER_LIST.length * 2}
+            height={providerList.length * 2}
             backgroundColor={bgColor}
             focusedBackgroundColor={bgColor}
             selectedBackgroundColor={bgColor}
@@ -583,6 +620,9 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
             descriptionColor={colors.textFaint}
             selectedDescriptionColor={colors.textMuted}
             focused
+            onChange={(index: number) => {
+              setHighlightIndex(index)
+            }}
             onSelect={(_index: number, option: SelectOption | null) => {
               if (!option) return
               setSelectedProvider(option.value as string)
@@ -594,12 +634,129 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
     )
   }
 
+  // ---- confirm delete (custom providers only) ----
+  if (step === "confirm-delete") {
+    const target = highlighted?.label ?? "?"
+    return (
+      <Overlay>
+        <ModalShell title="/connect · delete — confirm" innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+          <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
+            <text fg={colors.yellow}>
+              {`Delete "${target}"?  press d or y to confirm · any other key to cancel`}
+            </text>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
+  // ---- add custom provider: step 1 — name ----
+  if (step === "add-name") {
+    return (
+      <Overlay>
+        <ModalShell title="/connect · add custom — name · esc back" innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+          <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
+            <text fg={colors.textFaint}>Display name for this provider (e.g. LM Studio):</text>
+            <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
+              <textarea
+                key="add-name"
+                ref={nameRef as React.Ref<any>}
+                height={1}
+                style={{ flexGrow: 1 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                placeholder="My local server"
+                focused
+                keyBindings={[{ name: "return", action: "submit" }]}
+                onSubmit={() => {
+                  const text = (nameRef.current?.plainText ?? "").trim()
+                  if (text) {
+                    setPendingName(text)
+                    setStep("add-url")
+                  }
+                }}
+              />
+            </box>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
+  // ---- add custom provider: step 2 — base URL ----
+  if (step === "add-url") {
+    return (
+      <Overlay>
+        <ModalShell title={`/connect · add custom · ${pendingName} — base URL · esc back`} innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+          <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
+            <text fg={colors.textFaint}>OpenAI-compatible base URL (e.g. http://localhost:1234/v1):</text>
+            <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
+              <textarea
+                key="add-url"
+                ref={urlRef as React.Ref<any>}
+                height={1}
+                style={{ flexGrow: 1 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                placeholder="http://localhost:11434/v1"
+                focused
+                keyBindings={[{ name: "return", action: "submit" }]}
+                onSubmit={() => {
+                  const text = (urlRef.current?.plainText ?? "").trim()
+                  if (text) {
+                    setPendingUrl(text)
+                    setStep("add-key")
+                  }
+                }}
+              />
+            </box>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
+  // ---- add custom provider: step 3 — API key (empty allowed, for local servers) ----
+  if (step === "add-key") {
+    return (
+      <Overlay>
+        <ModalShell title={`/connect · add custom · ${pendingName} — API key · esc back`} innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+          <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
+            <text fg={colors.textFaint}>API key (enter to save, leave blank if no key is needed):</text>
+            <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
+              <textarea
+                key="add-key"
+                ref={keyRef as React.Ref<any>}
+                height={1}
+                style={{ flexGrow: 1 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                placeholder="sk-... (optional)"
+                focused
+                keyBindings={[{ name: "return", action: "submit" }]}
+                onSubmit={() => {
+                  const text = (keyRef.current?.plainText ?? "").trim()
+                  onAddCustom({ label: pendingName, base_url: pendingUrl, api_key: text })
+                  onClose()
+                }}
+              />
+            </box>
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
   // Step 2: key entry (keyed providers) or base-URL editor (keyless providers)
-  const providerLabel = PROVIDER_LIST.find((p) => p.id === selectedProvider)?.label ?? selectedProvider
-  const isKeyless = PROVIDERS[selectedProvider]?.keyless ?? false
+  const providers = effectiveProviders(auth)
+  const providerLabel = providerList.find((p) => p.id === selectedProvider)?.label ?? selectedProvider
+  const isKeyless = providers[selectedProvider]?.keyless ?? false
 
   if (isKeyless) {
-    const defaultUrl = PROVIDERS[selectedProvider]?.base_url ?? "http://localhost:11434/v1"
+    const defaultUrl = providers[selectedProvider]?.base_url ?? "http://localhost:11434/v1"
     const savedUrl = auth.providers[selectedProvider]?.base_url ?? defaultUrl
 
     return (
@@ -636,6 +793,7 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
               }}
             >
               <textarea
+                key={`url-${selectedProvider}`}
                 ref={inputRef as React.Ref<any>}
                 height={1}
                 style={{ flexGrow: 1 }}
@@ -698,6 +856,7 @@ export function ConnectModal({ auth, bgColor, onSave, onClose }: ConnectModalPro
             }}
           >
             <textarea
+              key={`key-${selectedProvider}`}
               ref={inputRef as React.Ref<any>}
               height={1}
               style={{ flexGrow: 1 }}

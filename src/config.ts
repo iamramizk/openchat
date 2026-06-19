@@ -128,8 +128,8 @@ export function resolveConnection(
   if (!entry) return null
 
   const providerDef = PROVIDERS[entry.provider]
-  const keyless = providerDef?.keyless ?? false
   const creds = auth.providers[entry.provider]
+  const keyless = providerDef?.keyless ?? creds?.keyless ?? false
   if (!keyless && !creds?.api_key) return null
 
   const base_url = creds?.base_url ?? providerDef?.base_url ?? ""

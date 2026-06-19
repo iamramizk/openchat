@@ -78,7 +78,9 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 - 🎨 **Rich terminal rendering** — full Markdown formatting and syntax highlighting powered by tree-sitter; code blocks look great out of the box
 - 🔌 **Multi-provider** — works with [OpenRouter](https://openrouter.ai), [Groq](https://groq.com), [OpenAI](https://platform.openai.com), or any OpenAI-compatible endpoint; switch models on the fly with `Ctrl+P`
 - 🦙 **Ollama — local models, zero config** — first-class Ollama support with no API key required; just run `ollama serve` and your local models are ready. The `/models` picker lists installed models live from the running server
-- 🧠 **Thinking indicator** — reasoning-capable models (Ollama, DeepSeek-R1, OpenAI o-series) show an animated `⠋ Thinking` spinner while they reason; it disappears the moment the answer begins streaming
+- 🧠 **Thinking indicator** — reasoning-capable models (Ollama, DeepSeek-R1, OpenAI o-series) show an animated `⠋ Thinking` spinner with a live, auto-scrolling 3-line preview of the reasoning text; both disappear the moment the answer begins streaming
+- ⏹️ **Stop a response mid-stream** — press `Esc` while a model is responding to cancel it instantly; the partial reply is kept with a `⏹ stopped` marker
+- 🧩 **Custom providers** — connect any OpenAI-compatible endpoint (LM Studio, vLLM, a local proxy, etc.) by pressing `a` in `/connect`; API key is optional, so fully local/keyless servers work out of the box
 - 🎭 **Customisable personas** — four built-in system-prompt presets (Default, Hacker, Developer, Writer) plus a shared global preamble; cycle live with `Shift+Tab` without losing conversation history; fully user-editable Markdown files
 - 📊 **Live session stats** — context-window percentage, running token count, and cumulative session cost shown in the status bar on every turn
 - 📋 **Auto-copy on select** — mouse-drag selection copies text to the clipboard automatically (OSC 52, with `pbcopy` / `wl-copy` / `xclip` fallbacks)
@@ -155,7 +157,7 @@ openchat
 
 Then, inside the TUI:
 
-1. **Add an API key** — type `/connect`, pick a provider, and paste your key. It's saved immediately. For **Ollama**, no key is needed — just pick it and confirm the base URL (default: `http://localhost:11434/v1`).
+1. **Add an API key** — type `/connect`, pick a provider, and paste your key. It's saved immediately. For **Ollama**, no key is needed — just pick it and confirm the base URL (default: `http://localhost:11434/v1`). Running something else OpenAI-compatible (LM Studio, vLLM, a local proxy)? Press `a` in `/connect` to add it as a custom provider — name it, give it a base URL, and leave the API key blank if it doesn't need one.
 2. **Choose a model** — press `Ctrl+P` (or type `/models`) to see all configured models and switch with `Enter`. Press `a` to add a new model (`f` to set a default, `r` to rename). For Ollama, a live list of your installed models is shown — no typing model IDs.
 3. **Start chatting** — type your message and press `Enter` to send. `Shift+Enter` inserts a newline.
 4. **Switch personas** — press `Shift+Tab` to cycle through available personas without losing your conversation.
@@ -199,7 +201,7 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 
 | Command | Action |
 |---------|--------|
-| `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; Ollama shows `✓ no key needed`. Saves to `auth.json` immediately. |
+| `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; keyless providers show `✓ no key needed`. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank for local servers); `d` — delete a custom provider (confirm), shown with a `· custom` marker; built-in providers can't be deleted. Saves to `auth.json` immediately. |
 | `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
 
 **Binary subcommands (run from your terminal):**
@@ -217,6 +219,7 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 |-----|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | Insert newline |
+| `Esc` | Stop a streaming response (idle: exit) |
 | `Ctrl+P` | Open `/models` switcher |
 | `Shift+Tab` | Cycle to next persona |
 | `Ctrl+C` | Exit |

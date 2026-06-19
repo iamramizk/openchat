@@ -5,10 +5,10 @@ import { streamCompletion, fetchModelInfo } from "./openrouter.ts"
 import { composeSystemPrompt } from "./personas.ts"
 import { syntaxStyle, colors } from "./theme.ts"
 import { resolveConnection, saveConfig } from "./config.ts"
-import { setProviderKey, setProviderBaseUrl } from "./auth.ts"
+import { setProviderKey, setProviderBaseUrl, setCustomProvider, removeProvider } from "./auth.ts"
 import type { Config, ChatMessage, ModelEntry, ModelInfo, Persona, SessionStats, ActiveConnection } from "./types.ts"
 import type { AuthStore } from "./auth.ts"
-import { PROVIDERS } from "./providers.ts"
+import { effectiveProviders, uniqueProviderId } from "./providers.ts"
 import { ChatPane } from "./components/ChatPane.tsx"
 import { InputBar } from "./components/InputBar.tsx"
 import { StatusBar } from "./components/StatusBar.tsx"
@@ -185,6 +185,10 @@ export function App({
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Set while a stream is in flight; non-null doubles as "can Esc abort?" for the
+  // keyboard handler below.
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   // -------------------------------------------------------------------------
   // Transient toast helper
   // -------------------------------------------------------------------------
@@ -202,8 +206,18 @@ export function App({
   useKeyboard((key) => {
     if (modal) return // modal has its own keyboard handling
 
-    if (key.name === "escape" || (key.ctrl && key.name === "c")) {
+    if (key.ctrl && key.name === "c") {
       renderer.destroy()
+      return
+    }
+    if (key.name === "escape") {
+      // While streaming, Esc aborts the request instead of quitting.
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      } else {
+        renderer.destroy()
+      }
+      return
     }
     if (key.shift && key.name === "tab") {
       setPersonaIndex((i) => (i + 1) % personas.length)
@@ -258,18 +272,24 @@ export function App({
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsStreaming(true)
 
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     try {
       const reqMessages = [...history, { role: "user" as const, content: text }]
 
-      for await (const chunk of streamCompletion(connection, reqMessages, systemPrompt)) {
+      for await (const chunk of streamCompletion(connection, reqMessages, systemPrompt, controller.signal)) {
         if (chunk.done) break
 
         // Reasoning tokens arrive before the answer on thinking models.
-        // Set isThinking while only reasoning is flowing (content still empty).
+        // Set isThinking while only reasoning is flowing (content still empty),
+        // and accumulate the text for the live thinking preview.
         if (chunk.reasoning) {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId && m.content === "" ? { ...m, isThinking: true } : m,
+              m.id === assistantId && m.content === ""
+                ? { ...m, isThinking: true, reasoning: (m.reasoning ?? "") + chunk.reasoning }
+                : m,
             ),
           )
         }
@@ -299,15 +319,29 @@ export function App({
         prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false, isThinking: false } : m)),
       )
     } catch (err) {
-      const errorText = err instanceof Error ? err.message : String(err)
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: `**Error:** ${errorText}`, isStreaming: false, isThinking: false }
-            : m,
-        ),
-      )
+      // Check the controller directly rather than err.name/err instanceof
+      // DOMException — abort error shapes vary across runtimes.
+      if (controller.signal.aborted) {
+        // User pressed Esc — keep the partial reply, mark it as stopped.
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: `${m.content}\n\n⏹ stopped`, isStreaming: false, isThinking: false }
+              : m,
+          ),
+        )
+      } else {
+        const errorText = err instanceof Error ? err.message : String(err)
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: `**Error:** ${errorText}`, isStreaming: false, isThinking: false }
+              : m,
+          ),
+        )
+      }
     } finally {
+      abortControllerRef.current = null
       setIsStreaming(false)
     }
   }
@@ -369,9 +403,10 @@ export function App({
   // -------------------------------------------------------------------------
 
   function handleConnectSave(providerName: string, valueOrUrl: string) {
-    const providerLabel = PROVIDERS[providerName]?.label ?? (providerName.charAt(0).toUpperCase() + providerName.slice(1))
+    const providers = effectiveProviders(auth)
+    const providerLabel = providers[providerName]?.label ?? (providerName.charAt(0).toUpperCase() + providerName.slice(1))
     let updated: AuthStore
-    if (PROVIDERS[providerName]?.keyless) {
+    if (providers[providerName]?.keyless) {
       updated = setProviderBaseUrl(auth, providerName, valueOrUrl)
       showToast(`✓ ${providerLabel} base URL saved to auth.json`)
     } else {
@@ -379,6 +414,18 @@ export function App({
       showToast(`✓ ${providerLabel} key saved to auth.json`)
     }
     setAuth(updated)
+  }
+
+  function handleAddCustomProvider(def: { label: string; base_url: string; api_key: string }) {
+    const id = uniqueProviderId(auth, def.label)
+    setAuth(setCustomProvider(auth, id, def))
+    showToast(`✓ Provider "${def.label}" added`)
+  }
+
+  function handleDeleteProvider(providerId: string) {
+    const label = effectiveProviders(auth)[providerId]?.label ?? providerId
+    setAuth(removeProvider(auth, providerId))
+    showToast(`✓ Provider "${label}" removed`)
   }
 
   // -------------------------------------------------------------------------
@@ -516,6 +563,8 @@ export function App({
           auth={auth}
           bgColor={popupBg}
           onSave={handleConnectSave}
+          onAddCustom={handleAddCustomProvider}
+          onDeleteProvider={handleDeleteProvider}
           onClose={() => setModal(null)}
         />
       )}

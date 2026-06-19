@@ -55,6 +55,8 @@ export interface ChatMessage {
   isStreaming: boolean
   /** True while the model is emitting reasoning tokens and no answer content has arrived yet. */
   isThinking?: boolean
+  /** Accumulated reasoning/thinking text, shown as a scrolling preview while isThinking. */
+  reasoning?: string
   /** Display-only override for user messages with large piped payloads.
    *  Never sent to the model or replayed in conversation history. */
   displayContent?: string

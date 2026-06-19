@@ -13,6 +13,12 @@ import { PROVIDERS } from "./providers.ts"
 export interface ProviderCredential {
   api_key: string
   base_url?: string  // override; falls back to PROVIDERS[name].base_url at resolve time
+  /** Display label for custom (user-added) providers — unused for built-ins. */
+  label?: string
+  /** True if this provider needs no API key. Built-ins read this from PROVIDERS instead. */
+  keyless?: boolean
+  /** Marks a user-added provider (not in the built-in PROVIDERS registry) — deletable via /connect. */
+  custom?: boolean
 }
 
 export interface AuthStore {
@@ -51,13 +57,15 @@ export function setProviderKey(
   providerName: string,
   api_key: string,
 ): AuthStore {
+  const existing = store.providers[providerName]
   const providerDef = PROVIDERS[providerName]
   const updated: AuthStore = {
     providers: {
       ...store.providers,
       [providerName]: {
+        ...existing,
         api_key,
-        base_url: providerDef?.base_url,
+        base_url: existing?.base_url ?? providerDef?.base_url,
       },
     },
   }
@@ -75,15 +83,52 @@ export function setProviderBaseUrl(
   providerName: string,
   base_url: string,
 ): AuthStore {
+  const existing = store.providers[providerName]
   const updated: AuthStore = {
     providers: {
       ...store.providers,
       [providerName]: {
-        api_key: "",
+        ...existing,
+        api_key: existing?.api_key ?? "",
         base_url,
       },
     },
   }
+  saveAuth(updated)
+  return updated
+}
+
+/**
+ * Add or update a custom OpenAI-compatible provider (e.g. a local server).
+ * An empty api_key marks the provider keyless so resolveConnection accepts it
+ * without credentials. Persists immediately to auth.json.
+ */
+export function setCustomProvider(
+  store: AuthStore,
+  providerId: string,
+  def: { label: string; base_url: string; api_key: string },
+): AuthStore {
+  const updated: AuthStore = {
+    providers: {
+      ...store.providers,
+      [providerId]: {
+        api_key: def.api_key,
+        base_url: def.base_url,
+        label: def.label,
+        keyless: def.api_key.trim() === "",
+        custom: true,
+      },
+    },
+  }
+  saveAuth(updated)
+  return updated
+}
+
+/** Remove a provider's credentials/definition entirely. Persists immediately. */
+export function removeProvider(store: AuthStore, providerId: string): AuthStore {
+  const providers = { ...store.providers }
+  delete providers[providerId]
+  const updated: AuthStore = { providers }
   saveAuth(updated)
   return updated
 }

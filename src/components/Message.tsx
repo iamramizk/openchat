@@ -31,7 +31,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
       </text>
 
       {/* Thinking indicator — shown while reasoning tokens arrive, before answer text */}
-      {!isUser && msg.isThinking && <ThinkingIndicator />}
+      {!isUser && msg.isThinking && <ThinkingIndicator reasoning={msg.reasoning} />}
 
       {/* Message content */}
       {isUser ? (

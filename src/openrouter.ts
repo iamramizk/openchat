@@ -66,6 +66,7 @@ export async function* streamCompletion(
   conn: ActiveConnection,
   messages: Array<{ role: string; content: string }>,
   systemPrompt: string,
+  signal?: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
   const body = {
     model: conn.model,
@@ -83,6 +84,7 @@ export async function* streamCompletion(
       "X-Title": "openchat",
     },
     body: JSON.stringify(body),
+    signal,
   })
 
   if (!res.ok) {
@@ -153,7 +155,9 @@ export async function* streamCompletion(
       }
     }
   } finally {
-    reader.cancel()
+    // Cancelling a reader whose underlying stream was just aborted (Esc-to-stop)
+    // rejects — swallow it so it doesn't surface as an unhandled rejection.
+    reader.cancel().catch(() => {})
   }
 }
 

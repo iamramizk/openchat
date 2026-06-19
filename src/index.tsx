@@ -149,33 +149,15 @@ renderer.setTerminalTitle("openchat")
 
 // ---------------------------------------------------------------------------
 // Tree-sitter: register extra languages and initialize the global client.
-// addDefaultParsers must run before initialize() so definitions are available.
-// Individual WASM files are fetched lazily on first use, then cached.
-//
-// Bun workers don't expose globalThis.close, which opentui uses to detect the
-// worker context — so `bun-worker-shim.ts` polyfills it before importing the
-// real parser worker.
-//
-// In a compiled binary, workers cannot be spawned from bunfs paths (Bun 1.3.x).
-// The workaround: ensureWorker() writes a pre-built worker bundle + its wasm
-// dependency to the data dir on every startup, then we point opentui at that
-// on-disk file. Both files are small (~200KB each).
+// The client reference itself is needed synchronously as an <App> prop, but
+// the actual worker setup + wasm init is deferred until after the first
+// render — the first frame (empty chat + status bar) needs none of it, and
+// it's only exercised once the first assistant markdown message streams.
 // ---------------------------------------------------------------------------
-
-const workerJsPath = ensureWorker(wasmSourcePath)
-process.env.OTUI_TREE_SITTER_WORKER_PATH = workerJsPath
-
-addDefaultParsers(EXTRA_PARSERS)
 
 const treeSitterClient = getTreeSitterClient()
 const dataPaths = getDataPaths()
 dataPaths.appName = "openchat"
-try {
-  await treeSitterClient.initialize()
-} catch (err) {
-  // Non-fatal: syntax highlighting won't work but the TUI will still boot.
-  console.warn(`openchat: tree-sitter unavailable (${err instanceof Error ? err.message : err}) — code highlighting disabled`)
-}
 
 // ---------------------------------------------------------------------------
 
@@ -190,3 +172,29 @@ createRoot(renderer).render(
     initialPipedInput={pipedInput || undefined}
   />,
 )
+
+// ---------------------------------------------------------------------------
+// Warm tree-sitter in the background — addDefaultParsers must run before
+// initialize() so definitions are available.
+// Individual WASM files are fetched lazily on first use, then cached.
+//
+// Bun workers don't expose globalThis.close, which opentui uses to detect the
+// worker context — so `bun-worker-shim.ts` polyfills it before importing the
+// real parser worker.
+//
+// In a compiled binary, workers cannot be spawned from bunfs paths (Bun 1.3.x).
+// The workaround: ensureWorker() writes a pre-built worker bundle + its wasm
+// dependency to the data dir (only if missing or stale), then we point opentui
+// at that on-disk file. Both files are small (~200KB each).
+// ---------------------------------------------------------------------------
+
+void (async () => {
+  try {
+    process.env.OTUI_TREE_SITTER_WORKER_PATH = ensureWorker(wasmSourcePath)
+    addDefaultParsers(EXTRA_PARSERS)
+    await treeSitterClient.initialize()
+  } catch (err) {
+    // Non-fatal: syntax highlighting won't work but the TUI will still boot.
+    console.warn(`openchat: tree-sitter unavailable (${err instanceof Error ? err.message : err}) — code highlighting disabled`)
+  }
+})()
