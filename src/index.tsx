@@ -6,10 +6,12 @@ import { loadPersonas } from "./personas.ts"
 import { EXTRA_PARSERS } from "./parsers.ts"
 import { ensureWorker } from "./paths.ts"
 import { UPDATE_SH, UNINSTALL_SH } from "./bundled-assets.ts"
+import { reconcilePrompts } from "./prompt-sync.ts"
 import { App } from "./App.tsx"
 import { writeFileSync, unlinkSync, openSync } from "fs"
 import { ReadStream } from "node:tty"
 import { tmpdir } from "os"
+import { createInterface } from "readline/promises"
 import pkg from "../package.json"
 
 // The wasm file embedded alongside the pre-built worker bundle.
@@ -41,6 +43,7 @@ if (_cmd === "--help" || _cmd === "-h") {
     `  (none)       Launch the chat TUI\n` +
     `  update       Update openchat to the latest release\n` +
     `  uninstall    Remove openchat and all its config/data\n` +
+    `  reconcile-prompts  Sync bundled persona prompts onto your config (run automatically by update)\n` +
     `  --version    Print version and exit\n` +
     `  --help       Show this help\n`
   )
@@ -63,6 +66,31 @@ if (_cmd === "update" || _cmd === "uninstall") {
   })
   try { unlinkSync(tmp) } catch { /* ignore */ }
   process.exit(result.exitCode ?? 0)
+}
+
+// ---------------------------------------------------------------------------
+// reconcile-prompts — run interactively in the plain terminal (no TUI) right
+// after `update.sh` swaps in a new binary, so newly-bundled persona defaults
+// reach existing installs. Unedited files are updated silently; edited files
+// trigger a single combined y/N prompt (see src/prompt-sync.ts for the
+// classification logic and src/prompt-hashes.ts for the hash history).
+// ---------------------------------------------------------------------------
+
+if (_cmd === "reconcile-prompts") {
+  async function confirmReplace(editedFiles: string[]): Promise<boolean> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    try {
+      const answer = await rl.question(
+        `Back up your edited persona${editedFiles.length > 1 ? "s" : ""} and install the new defaults? [y/N] `,
+      )
+      return /^y(es)?$/i.test(answer.trim())
+    } finally {
+      rl.close()
+    }
+  }
+
+  await reconcilePrompts({ version: pkg.version, confirmReplace })
+  process.exit(0)
 }
 
 // ---------------------------------------------------------------------------

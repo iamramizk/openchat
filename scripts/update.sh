@@ -17,6 +17,7 @@ REPO="iamramizk/openchat"
 BLUE=$'\033[38;2;88;166;255m'
 GREEN=$'\033[32m'
 RED=$'\033[31m'
+YELLOW=$'\033[33m'
 BOLD=$'\033[1m'
 RESET=$'\033[0m'
 tmpdir=""
@@ -168,6 +169,16 @@ main() {
   fi
 
   printf '\n  %s%sopenchat updated: v%s → v%s%s\n' "$GREEN" "$BOLD" "$current" "$latest" "$RESET"
+
+  # ── Sync bundled persona prompts ────────────────────────────────────────────
+  # New defaults may have shipped in this release. Run interactively in this
+  # same terminal — the binary is already swapped, so this exercises the new
+  # prompt set. Never fail the update itself if this step has trouble.
+  printf '\n'
+  "$binary" reconcile-prompts || {
+    printf '%s⚠%s  Could not sync persona prompts — run "%s reconcile-prompts" manually.\n' \
+      "$YELLOW" "$RESET" "$binary" >&2
+  }
 }
 
 main "$@"

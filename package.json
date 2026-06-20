@@ -8,6 +8,7 @@
   "scripts": {
     "start": "bun run src/index.tsx",
     "build:worker": "bun build src/bun-worker-shim.ts --target=bun --outdir src/worker --asset-naming=[name].[ext]",
+    "build:prompt-hashes": "bun run scripts/gen-prompt-hashes.ts",
     "build:mac": "bun build src/index.tsx --compile --outfile dist/openchat-darwin-arm64",
     "build:linux-x64": "bun build src/index.tsx --compile --outfile dist/openchat-linux-x64",
     "build:linux-arm64": "bun build src/index.tsx --compile --outfile dist/openchat-linux-arm64"
