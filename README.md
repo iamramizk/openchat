@@ -281,8 +281,8 @@ Persona files live in `~/.config/openchat/prompts/`. Each is a plain Markdown fi
 |------|---------|
 | `_global.md` | Shared preamble — injected before every persona |
 | `0-default.md` | General Assistant |
-| `1-hacker.md` | Kali Linux & Cybersecurity Researcher |
-| `2-developer.md` | Senior Software Engineer & Architect |
+| `1-hacker.md` | Cybersecurity Lab Assistant |
+| `2-developer.md` | Senior Full Stack Developer |
 | `3-writer.md` | Copywriter & Editor |
 
 Edit these files freely, or add new ones — openchat picks them up on the next launch. When new
