@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/API-OpenAI_compatible-10A37F?style=flat-square" alt="OpenAI Compatible">
   <img src="https://img.shields.io/badge/interface-Terminal_TUI-1a1a2e?style=flat-square" alt="Terminal UI">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/github/downloads/iamramizk/openchat/total?style=flat-square&color=58A6FF" alt="Downloads">
 </p>
 
 ---
@@ -125,6 +126,11 @@ openchat uninstall    # remove the binary and all config/data (prompts for confi
 
 Both commands work from the binary itself — no curl needed after initial install.
 
+`update` also syncs your persona prompts onto any new bundled defaults: files you've never
+edited are updated automatically, while files you've customised are left alone — you'll be asked
+once whether to back up your version (to `prompts/backup/`) and install the new default, or skip
+it and have the new default saved to `prompts/new/` for you to review later.
+
 ---
 
 ## Build from Source
@@ -191,7 +197,10 @@ On first run, openchat creates the following files — nothing is written to the
 
 Both directories respect `$XDG_CONFIG_HOME` / `$XDG_DATA_HOME` overrides if set.
 
-The `prompts/` directory and `config.yaml` are seeded once from bundled defaults. Changes you make are preserved across updates.
+The `prompts/` directory and `config.yaml` are seeded once from bundled defaults. `config.yaml`
+is never touched again after that. Persona prompts are different: `openchat update` re-syncs
+them against the latest bundled defaults, but only overwrites files you haven't edited — see
+[Updating & Uninstalling](#updating--uninstalling).
 
 ---
 
@@ -203,6 +212,7 @@ The `prompts/` directory and `config.yaml` are seeded once from bundled defaults
 |---------|--------|
 | `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; keyless providers show `✓ no key needed`. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank for local servers); `d` — delete a custom provider (confirm), shown with a `· custom` marker; built-in providers can't be deleted. Saves to `auth.json` immediately. |
 | `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
+| `/reset` | Clears the conversation and session token/cost counters, keeping your active persona, model, and credentials — a fresh session without restarting. |
 
 **Binary subcommands (run from your terminal):**
 
@@ -275,7 +285,9 @@ Persona files live in `~/.config/openchat/prompts/`. Each is a plain Markdown fi
 | `2-developer.md` | Senior Software Engineer & Architect |
 | `3-writer.md` | Copywriter & Editor |
 
-Edit these files freely, or add new ones — openchat picks them up on the next launch.
+Edit these files freely, or add new ones — openchat picks them up on the next launch. When new
+defaults ship in a future release, `openchat update` updates any persona file you haven't edited
+and asks before touching ones you have (see [Updating & Uninstalling](#updating--uninstalling)).
 
 ---
 
