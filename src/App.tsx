@@ -24,6 +24,7 @@ import type { CommandDef } from "./components/CommandSuggestions.tsx"
 const COMMANDS: CommandDef[] = [
   { name: "/models",  description: "switch model" },
   { name: "/connect", description: "add provider credentials" },
+  { name: "/reset",   description: "clear conversation, keep persona & model" },
 ]
 
 let _nextId = 0
@@ -200,6 +201,21 @@ export function App({
   }
 
   // -------------------------------------------------------------------------
+  // /reset: clear conversation + counters, mimicking a fresh session.
+  // Persona, model, and credentials are untouched — they live in separate state.
+  // -------------------------------------------------------------------------
+
+  function handleReset() {
+    setMessages([])
+    messagesRef.current = []
+    setStats((prev) => ({ ...prev, totalTokens: 0, cumulativeCost: 0 }))
+    // Clear any leftover piped startup content so it truly behaves like a new session
+    setPipedContent("")
+    pipedContentRef.current = ""
+    showToast("✓ Conversation reset")
+  }
+
+  // -------------------------------------------------------------------------
   // Keyboard shortcuts (global)
   // -------------------------------------------------------------------------
 
@@ -371,6 +387,8 @@ export function App({
         setModal("models")
       } else if (resolved?.name === "/connect") {
         setModal("connect")
+      } else if (resolved?.name === "/reset") {
+        handleReset()
       } else if (prefixMatches.length > 1) {
         showToast(`Ambiguous command: ${token}  (did you mean ${prefixMatches.map((c) => c.name).join(" or ")}?)`)
       } else {
