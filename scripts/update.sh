@@ -69,6 +69,16 @@ sha256_of() {
   fi
 }
 
+# Prints $1 repeated $2 times. Used to build the progress bar below without
+# `tr`, which maps SET1->SET2 byte-by-byte — a single-byte space mapped to a
+# multibyte char like █ (3 bytes in UTF-8) truncates to its first byte, which
+# renders as "?" under non-UTF-8 `tr` implementations/locales.
+repeat_char() {
+  local s="$1" n="$2" out='' i
+  for (( i = 0; i < n; i++ )); do out+="$s"; done
+  printf '%s' "$out"
+}
+
 # Downloads $1 to $2, drawing an indented, coloured progress bar (matching the
 # script's other status lines) instead of curl's bare, unindented one. Falls
 # back to a plain download with no bar if the content-length can't be
@@ -89,9 +99,7 @@ download_with_progress() {
   curl -fSsL "$url" -o "$dest" &
   local pid=$!
 
-  local width=28 bar_full bar_empty
-  bar_full=$(printf '%*s' "$width" '' | tr ' ' '█')
-  bar_empty=$(printf '%*s' "$width" '' | tr ' ' '░')
+  local width=28
 
   while kill -0 "$pid" 2>/dev/null; do
     local size pct filled empty
@@ -106,7 +114,7 @@ download_with_progress() {
     [ "$pct" -gt 100 ] && pct=100
     filled=$(( pct * width / 100 ))
     empty=$(( width - filled ))
-    printf '\r  [%s%s%s%s]  %3d%%' "$BLUE" "${bar_full:0:$filled}" "$RESET" "${bar_empty:0:$empty}" "$pct"
+    printf '\r  [%s%s%s%s]  %3d%%' "$BLUE" "$(repeat_char '█' "$filled")" "$RESET" "$(repeat_char '░' "$empty")" "$pct"
     sleep 0.1
   done
 
@@ -114,7 +122,7 @@ download_with_progress() {
   local status=$?
 
   if [ "$status" -eq 0 ]; then
-    printf '\r  [%s%s%s]  100%%\n' "$BLUE" "$bar_full" "$RESET"
+    printf '\r  [%s%s%s]  100%%\n' "$BLUE" "$(repeat_char '█' "$width")" "$RESET"
     printf '  %s✓%s  Downloaded %s\n' "$GREEN" "$RESET" "$label"
   else
     printf '\n'
