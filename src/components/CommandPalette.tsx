@@ -4,7 +4,7 @@ import type { SelectOption } from "@opentui/core"
 import type { ModelEntry } from "../types.ts"
 import type { AuthStore } from "../auth.ts"
 import { effectiveProviderList, effectiveProviders, isCustomProvider } from "../providers.ts"
-import { fetchInstalledModels } from "../openrouter.ts"
+import { fetchInstalledModels } from "../completions.ts"
 import { colors } from "../theme.ts"
 import { configFile, authFile } from "../paths.ts"
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useKeyboard, useRenderer, useSelectionHandler } from "@opentui/react"
 import type { TreeSitterClient } from "@opentui/core"
-import { streamCompletion, fetchModelInfo } from "./openrouter.ts"
+import { streamCompletion, fetchModelInfo } from "./completions.ts"
 import { composeSystemPrompt } from "./personas.ts"
 import { syntaxStyle, colors } from "./theme.ts"
 import { resolveConnection, saveConfig } from "./config.ts"

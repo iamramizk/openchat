@@ -87,7 +87,7 @@ source.
 
 - **Streaming:** SSE via `stream: true` + `stream_options: { include_usage: true }`
   (OpenAI-standard — do not use OpenRouter's deprecated `usage: { include: true }`, Groq/OpenAI
-  reject it). `streamCompletion()` (`openrouter.ts`) also yields reasoning tokens
+  reject it). `streamCompletion()` (`completions.ts`) also yields reasoning tokens
   (`delta.reasoning` / `reasoning_content` / `thinking`, whichever the provider emits) as
   `StreamChunk.reasoning`.
 - **Stop streaming:** `Esc` while streaming aborts via `AbortController`
@@ -135,7 +135,7 @@ src/
   assets.d.ts           # `declare module "*.md"` for text-import attributes
   providers.ts          # PROVIDERS registry (openrouter/groq/openai/ollama) + effectiveProviders/effectiveProviderList/isCustomProvider/uniqueProviderId (merge in custom providers from auth.json)
   personas.ts           # loadPersonas() + composeSystemPrompt()
-  openrouter.ts         # fetchModelInfo(conn), streamCompletion(conn, messages, systemPrompt, signal), fetchInstalledModels(baseUrl, apiKey)
+  completions.ts        # fetchModelInfo(conn), streamCompletion(conn, messages, systemPrompt, signal), fetchInstalledModels(baseUrl, apiKey)
   types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (isThinking/reasoning/displayContent), ModelInfo, SessionStats, StreamChunk
   theme.ts              # color palette + SyntaxStyle for <markdown>
   parsers.ts            # EXTRA_PARSERS for addDefaultParsers()
