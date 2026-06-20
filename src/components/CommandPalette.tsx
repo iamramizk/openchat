@@ -242,7 +242,14 @@ export function ModelsModal({
       )
     }
 
-    const ollamaOptions = ollamaModels.map((id) => ({ name: id, description: "", value: id }))
+    const addedIds = new Set(
+      models.filter((m) => m.provider === pendingProvider).map((m) => m.model),
+    )
+    const ollamaOptions = ollamaModels.map((id) => ({
+      name: id,
+      description: addedIds.has(id) ? "✓ already added" : "",
+      value: id,
+    }))
     return (
       <Overlay>
         <ModalShell
@@ -266,7 +273,9 @@ export function ModelsModal({
             focused
             onSelect={(_index: number, option: SelectOption | null) => {
               if (!option) return
-              setPendingModelId(option.value as string)
+              const id = option.value as string
+              if (addedIds.has(id)) return // already added — not selectable
+              setPendingModelId(id)
               setMode("add-name")
             }}
           />
@@ -368,12 +377,14 @@ export function ModelsModal({
               }}
             >
               <textarea
+                key={`name-${pendingModelId}`}
                 ref={nameRef as React.Ref<any>}
                 height={1}
                 style={{ flexGrow: 1 }}
                 textColor={colors.text}
                 cursorColor={colors.accent}
                 placeholderColor={colors.textFaint}
+                initialValue={pendingModelId}
                 placeholder={pendingModelId}
                 focused
                 keyBindings={[{ name: "return", action: "submit" }]}
