@@ -42,12 +42,12 @@ export interface ReconcileOptions {
   version: string
   /** Ask the user a single combined yes/no question covering all edited files. Resolve true = back up + replace. */
   confirmReplace: (editedFiles: string[]) => Promise<boolean>
-  /** Report progress to the user. Defaults to console.log. */
+  /** Report progress to the user. Defaults to a margin-indented console.log. */
   report?: (message: string) => void
 }
 
 export async function reconcilePrompts(opts: ReconcileOptions): Promise<ReconcileResult> {
-  const { version, confirmReplace, report = (m: string) => console.log(m) } = opts
+  const { version, confirmReplace, report = (m: string) => console.log(`  ${m}`) } = opts
 
   const marker = versionMarkerPath()
   if (existsSync(marker) && readFileSync(marker, "utf-8").trim() === version) {
@@ -81,10 +81,6 @@ export async function reconcilePrompts(opts: ReconcileOptions): Promise<Reconcil
     }
   }
 
-  if (updated.length > 0) {
-    report(`Default prompts updated: ${updated.join(", ")}`)
-  }
-
   let backedUp = false
   if (edited.length > 0) {
     report(`Updates to these personas are available: ${edited.join(", ")}`)
@@ -98,19 +94,15 @@ export async function reconcilePrompts(opts: ReconcileOptions): Promise<Reconcil
         writeFileSync(join(dir, filename), BUNDLED_PROMPTS[filename], "utf-8")
       }
       backedUp = true
-      report(`Backed up your edited personas to ${backupDir} and installed the new defaults.`)
+      report(`Backed up to ${backupDir}`)
     } else {
       const newDir = join(dir, "new")
       mkdirSync(newDir, { recursive: true })
       for (const filename of edited) {
         writeFileSync(join(newDir, filename), BUNDLED_PROMPTS[filename], "utf-8")
       }
-      report(`Your edited personas were left untouched. New defaults saved to ${newDir} for review.`)
+      report(`New defaults saved to ${newDir} for review`)
     }
-  }
-
-  if (updated.length === 0 && edited.length === 0) {
-    report("Personas already up to date.")
   }
 
   mkdirSync(configDir(), { recursive: true })

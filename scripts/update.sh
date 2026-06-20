@@ -69,6 +69,59 @@ sha256_of() {
   fi
 }
 
+# Downloads $1 to $2, drawing an indented, coloured progress bar (matching the
+# script's other status lines) instead of curl's bare, unindented one. Falls
+# back to a plain download with no bar if the content-length can't be
+# determined up front (e.g. chunked responses). $3 is the label shown to the
+# user. Returns curl's own exit status.
+download_with_progress() {
+  local url="$1" dest="$2" label="$3"
+  local total
+  total=$(curl -fsSIL "$url" 2>/dev/null | grep -i '^content-length:' | tail -1 | awk '{print $2}' | tr -d '\r\n') || true
+
+  printf '  Downloading %s...\n' "$label"
+
+  if ! [[ "$total" =~ ^[0-9]+$ ]] || [ "$total" -le 0 ]; then
+    curl -fSsL "$url" -o "$dest"
+    return $?
+  fi
+
+  curl -fSsL "$url" -o "$dest" &
+  local pid=$!
+
+  local width=28 bar_full bar_empty
+  bar_full=$(printf '%*s' "$width" '' | tr ' ' '█')
+  bar_empty=$(printf '%*s' "$width" '' | tr ' ' '░')
+
+  while kill -0 "$pid" 2>/dev/null; do
+    local size pct filled empty
+    if [ -f "$dest" ]; then
+      size=$(wc -c < "$dest" 2>/dev/null || printf '0')
+    else
+      size=0
+    fi
+    size=${size//[[:space:]]/}
+    [ -z "$size" ] && size=0
+    pct=$(( size * 100 / total ))
+    [ "$pct" -gt 100 ] && pct=100
+    filled=$(( pct * width / 100 ))
+    empty=$(( width - filled ))
+    printf '\r  [%s%s%s%s]  %3d%%' "$BLUE" "${bar_full:0:$filled}" "$RESET" "${bar_empty:0:$empty}" "$pct"
+    sleep 0.1
+  done
+
+  wait "$pid"
+  local status=$?
+
+  if [ "$status" -eq 0 ]; then
+    printf '\r  [%s%s%s]  100%%\n' "$BLUE" "$bar_full" "$RESET"
+    printf '  %s✓%s  Downloaded %s\n' "$GREEN" "$RESET" "$label"
+  else
+    printf '\n'
+  fi
+  return "$status"
+}
+
 main() {
   print_header
   printf '%s%s  openchat update%s\n\n' "$BOLD" "$BLUE" "$RESET"
@@ -135,8 +188,7 @@ main() {
   tmpdir=$(mktemp -d)
   trap 'rm -rf "${tmpdir:-}"' EXIT
 
-  printf '  Downloading %s...\n' "$asset"
-  if ! curl -fSL --progress-bar "${base_url}/${asset}" -o "${tmpdir}/${asset}" 2>&1; then
+  if ! download_with_progress "${base_url}/${asset}" "${tmpdir}/${asset}" "$asset"; then
     printf '\n%sError:%s Download failed.\n' "$RED" "$RESET" >&2
     exit 1
   fi

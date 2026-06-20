@@ -6,7 +6,8 @@ import { loadPersonas } from "./personas.ts"
 import { EXTRA_PARSERS } from "./parsers.ts"
 import { ensureWorker } from "./paths.ts"
 import { UPDATE_SH, UNINSTALL_SH } from "./bundled-assets.ts"
-import { reconcilePrompts } from "./prompt-sync.ts"
+import { reconcilePrompts, type ReconcileResult } from "./prompt-sync.ts"
+import { BLUE, GREEN, YELLOW, BOLD, RESET, LOGO } from "./ansi.ts"
 import { App } from "./App.tsx"
 import { writeFileSync, unlinkSync, openSync } from "fs"
 import { ReadStream } from "node:tty"
@@ -28,7 +29,7 @@ async function confirmPersonaReplace(editedFiles: string[]): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   try {
     const answer = await rl.question(
-      `Back up your edited persona${editedFiles.length > 1 ? "s" : ""} and install the new defaults? [y/N] `,
+      `  Back up your edited persona${editedFiles.length > 1 ? "s" : ""} and install the new defaults? [y/N] `,
     )
     return /^y(es)?$/i.test(answer.trim())
   } finally {
@@ -54,15 +55,16 @@ if (_cmd === "--version" || _cmd === "-v") {
 
 if (_cmd === "--help" || _cmd === "-h") {
   console.log(
-    `openchat v${pkg.version}\n` +
-    `\nUsage: openchat [command]\n` +
-    `\nCommands:\n` +
-    `  (none)       Launch the chat TUI\n` +
-    `  update       Update openchat to the latest release\n` +
-    `  uninstall    Remove openchat and all its config/data\n` +
-    `  reconcile-prompts  Sync bundled persona prompts onto your config (also runs automatically on launch)\n` +
-    `  --version    Print version and exit\n` +
-    `  --help       Show this help\n`
+    LOGO +
+    `${BOLD}${BLUE}  openchat v${pkg.version}${RESET}\n\n` +
+    `  Usage: openchat [command]\n` +
+    `\n` +
+    `  Commands:\n` +
+    `    (none)       Launch the chat TUI\n` +
+    `    update       Update openchat to the latest release\n` +
+    `    uninstall    Remove openchat and all its config/data\n` +
+    `    --version    Print version and exit\n` +
+    `    --help       Show this help\n`
   )
   process.exit(0)
 }
@@ -93,8 +95,33 @@ if (_cmd === "update" || _cmd === "uninstall") {
 // classification logic and src/prompt-hashes.ts for the hash history).
 // ---------------------------------------------------------------------------
 
+// Renders the result of reconcilePrompts() as a scannable, two-space-margin
+// summary block — a green tick + one filename per line, matching the look of
+// scripts/update.sh's other status lines.
+function printReconcileSummary(result: ReconcileResult) {
+  if (result.skipped || (result.updated.length === 0 && result.edited.length === 0)) {
+    console.log(`  ${GREEN}✓${RESET}  Personas already up to date`)
+    return
+  }
+
+  if (result.updated.length > 0) {
+    console.log(`  ${GREEN}✓${RESET}  Default prompts updated`)
+    for (const filename of result.updated) console.log(`       ${filename}`)
+  }
+
+  if (result.edited.length > 0) {
+    if (result.backedUp) {
+      console.log(`  ${GREEN}✓${RESET}  Edited personas backed up, new defaults installed`)
+    } else {
+      console.log(`  ${YELLOW}⚠${RESET}  Edited personas left untouched — new defaults saved for review`)
+    }
+    for (const filename of result.edited) console.log(`       ${filename}`)
+  }
+}
+
 if (_cmd === "reconcile-prompts") {
-  await reconcilePrompts({ version: pkg.version, confirmReplace: confirmPersonaReplace })
+  const result = await reconcilePrompts({ version: pkg.version, confirmReplace: confirmPersonaReplace })
+  printReconcileSummary(result)
   process.exit(0)
 }
 
