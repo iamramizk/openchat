@@ -20,6 +20,23 @@ import pkg from "../package.json"
 import wasmSourcePath from "./worker/tree-sitter.wasm" with { type: "file" }
 
 // ---------------------------------------------------------------------------
+// Shared y/N prompt for prompt-sync's edited-file decision — used both by the
+// standalone `reconcile-prompts` subcommand and the startup reconcile below.
+// ---------------------------------------------------------------------------
+
+async function confirmPersonaReplace(editedFiles: string[]): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = await rl.question(
+      `Back up your edited persona${editedFiles.length > 1 ? "s" : ""} and install the new defaults? [y/N] `,
+    )
+    return /^y(es)?$/i.test(answer.trim())
+  } finally {
+    rl.close()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Argv dispatcher — handle subcommands before the TUI boots so the renderer
 // is never initialised for these lightweight commands.
 //
@@ -43,7 +60,7 @@ if (_cmd === "--help" || _cmd === "-h") {
     `  (none)       Launch the chat TUI\n` +
     `  update       Update openchat to the latest release\n` +
     `  uninstall    Remove openchat and all its config/data\n` +
-    `  reconcile-prompts  Sync bundled persona prompts onto your config (run automatically by update)\n` +
+    `  reconcile-prompts  Sync bundled persona prompts onto your config (also runs automatically on launch)\n` +
     `  --version    Print version and exit\n` +
     `  --help       Show this help\n`
   )
@@ -77,19 +94,7 @@ if (_cmd === "update" || _cmd === "uninstall") {
 // ---------------------------------------------------------------------------
 
 if (_cmd === "reconcile-prompts") {
-  async function confirmReplace(editedFiles: string[]): Promise<boolean> {
-    const rl = createInterface({ input: process.stdin, output: process.stdout })
-    try {
-      const answer = await rl.question(
-        `Back up your edited persona${editedFiles.length > 1 ? "s" : ""} and install the new defaults? [y/N] `,
-      )
-      return /^y(es)?$/i.test(answer.trim())
-    } finally {
-      rl.close()
-    }
-  }
-
-  await reconcilePrompts({ version: pkg.version, confirmReplace })
+  await reconcilePrompts({ version: pkg.version, confirmReplace: confirmPersonaReplace })
   process.exit(0)
 }
 
@@ -149,6 +154,41 @@ function loadPersonasOrExit() {
 }
 
 const config = loadConfigOrExit()
+
+// ---------------------------------------------------------------------------
+// Startup prompt reconciliation — syncs ~/.config/openchat/prompts/ onto the
+// bundled defaults in *this* binary. This can't be left to `openchat update`
+// alone: its embedded update.sh is whatever shipped in the *previous*
+// version, so an update from a binary that predates this feature never
+// triggers it, and install.sh / manual-download users never run `update` at
+// all. Running it here means every launch of a newer binary self-heals.
+//
+// Only runs when stdin is a TTY — the edited-file decision needs a live y/N
+// prompt, and this happens before createCliRenderer() takes over the
+// terminal (raw mode isn't engaged yet). A failure here must never block
+// boot. The result is surfaced as an in-TUI toast (not console output) below
+// — opentui's renderer repaints from row 1 without an alt-screen buffer, so
+// anything printed here would be invisibly overwritten by the first frame.
+// ---------------------------------------------------------------------------
+
+let startupNotice: string | undefined
+if (process.stdin.isTTY) {
+  try {
+    const result = await reconcilePrompts({ version: pkg.version, confirmReplace: confirmPersonaReplace })
+    if (!result.skipped) {
+      if (result.edited.length > 0) {
+        startupNotice = result.backedUp
+          ? "✓ Persona prompts updated — your edits were backed up to prompts/backup/"
+          : "Persona updates saved to prompts/new/ — your edits were kept as-is"
+      } else if (result.updated.length > 0) {
+        startupNotice = "✓ Default persona prompts updated"
+      }
+    }
+  } catch (err) {
+    console.warn(`openchat: prompt sync skipped (${err instanceof Error ? err.message : err})`)
+  }
+}
+
 const initialAuth = loadAuth() // never throws — returns empty store if file missing
 const { global: globalPrompt, personas } = loadPersonasOrExit()
 
@@ -198,6 +238,7 @@ createRoot(renderer).render(
     globalPrompt={globalPrompt}
     initialPersonaIndex={initialPersonaIndex}
     initialPipedInput={pipedInput || undefined}
+    startupNotice={startupNotice}
   />,
 )
 

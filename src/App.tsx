@@ -91,6 +91,8 @@ interface Props {
   globalPrompt: string
   initialPersonaIndex: number
   initialPipedInput?: string
+  /** One-shot notice from startup prompt reconciliation, shown as a toast on mount. */
+  startupNotice?: string
 }
 
 export function App({
@@ -101,6 +103,7 @@ export function App({
   globalPrompt,
   initialPersonaIndex,
   initialPipedInput,
+  startupNotice,
 }: Props) {
   const renderer = useRenderer()
 
@@ -199,6 +202,13 @@ export function App({
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setToastMsg(null), durationMs)
   }
+
+  // Startup prompt-reconciliation result (see index.tsx) — surfaced here rather
+  // than via console output before the renderer mounts, since opentui repaints
+  // from row 1 with no alt-screen buffer and would silently overwrite it.
+  useEffect(() => {
+    if (startupNotice) showToast(startupNotice, 4000)
+  }, [])
 
   // -------------------------------------------------------------------------
   // /reset: clear conversation + counters, mimicking a fresh session.
