@@ -45,30 +45,24 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 
 **Ollama** is great for local models, but its TUI renders responses as plain text — no markdown, no syntax highlighting, no colour. Reading code in it is painful.
 
-**openchat** fills the gap: a minimal, fast terminal chat interface that connects to any OpenAI-compatible provider — cloud or local — streams token-by-token, and renders responses beautifully with full syntax highlighting. Ollama is a first-class provider: no API key, zero config, just run `ollama serve` and start chatting. No agents, no file access, no shell execution — just a clean, trustworthy chat window you can spin up in seconds.
+**openchat** fills the gap: a minimal, fast terminal chat interface that connects to any OpenAI-compatible provider — cloud or local — streams token-by-token, and renders responses beautifully with full syntax highlighting. No agents, no file access, no shell execution.
 
-> Built for developers who live in the terminal and want fast, properly formatted answers without the overhead.
+> Built for those who live in the terminal and want fast, properly formatted answers without the overhead.
 
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src=".github/assets/screen-1.png" width="720" alt="openchat — clean start">
+  <img src=".github/assets/screen-4.png" width="720" alt="openchat — responsive syntax-highlighted chat with personas across providers">
   <br>
-  <sub>Clean start — model and persona shown in the status bar, ready to type</sub>
+  <sub>Rich terminal rendering with syntax highlighting and instant persona switching via <code>Shift+Tab</code>, shown in a responsive layout that adapts to any terminal width</sub>
 </p>
 
 <p align="center">
-  <img src=".github/assets/screen-2.png" width="720" alt="openchat — code response with /models modal">
+  <img src=".github/assets/screen-5.png" width="720" alt="openchat — instant model search across providers in the /models switcher">
   <br>
-  <sub>Syntax-highlighted code response with the <code>/models</code> switcher open</sub>
-</p>
-
-<p align="center">
-  <img src=".github/assets/screen-3.png" width="720" alt="openchat — Hacker persona">
-  <br>
-  <sub>Hacker persona active — formatted terminal output for a security question</sub>
+  <sub>Fast model switching via <code>Ctrl+P</code> or inline <code>/models</code> across multiple providers like Ollama, OpenRouter or custom endpoint simultaneously</sub>
 </p>
 
 ---

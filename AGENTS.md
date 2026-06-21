@@ -95,9 +95,13 @@ default, or leave it and drop the new default in `prompts/new/` for manual revie
 - **Input Bar:** Enter sends, Shift+Enter newline, auto-clears. Disabled while streaming or a
   modal is open. `/` triggers a floating autosuggestion popup. Piped input shows a
   ` piped input · N chars ` border title until first send.
-- **Status Bar:** model · persona · status · `ctx: N% Tk` · cost · keybinding hints — hints
-  auto-hide on narrow terminals (`useTerminalDimensions()`). No-model state shows blue
-  `/connect`/`/models` guidance.
+- **Status Bar:** model · persona · status · `ctx: N% Tk` · cost · keybinding hints. The
+  right-side cluster is responsive (`StatusBar.tsx`): a width-estimation loop against
+  `useTerminalDimensions()` picks a compaction level 0–6 and applies the steps cumulatively as
+  the terminal narrows — hide the hint → drop the status label (dot only) → drop the `ctx: `
+  prefix → drop the token count → trim cost to one fewer decimal → drop the `│` dividers
+  (falling back to the container's `gap`) — and reverses automatically as it widens. No-model
+  state shows blue `/connect`/`/models` guidance.
 
 ## Core Behaviour
 
@@ -137,7 +141,7 @@ default, or leave it and drop the new default in `prompts/new/` for manual revie
 | Command | Action |
 |---|---|
 | `/connect` | Pick a provider → enter API key, or base-URL editor for keyless providers. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank); `d` — delete a custom provider (confirm `d`/`y`; built-ins can't be deleted). Saves to `auth.json` immediately. |
-| `/models` | List `models[]` from `config.yaml`. `enter` switch · `a` add (provider → model-id → name; Ollama gets a live install pick-list, every other provider — including custom ones — uses manual id entry) · `d` delete (confirm) · `f` set default (★) · `r` rename. Writes `config.yaml` immediately. |
+| `/models` | List `models[]` from `config.yaml`. `↑↓` navigate (wraps top↔bottom via `wrapSelection`) · `enter` switch · `/` type-to-filter (matches name/provider/model id live; ↑↓ and enter still work while filtering; `esc` steps out of filter mode → clears the query → closes the modal) · `a` add (provider → model-id → name; Ollama gets a live install pick-list, every other provider — including custom ones — uses manual id entry) · `d` delete (confirm) · `f` set default (★) · `r` rename. Writes `config.yaml` immediately. Shortcut hints render at the bottom of the modal. |
 
 ## Source Layout
 
@@ -166,10 +170,10 @@ src/
     ChatPane.tsx        # <scrollbox> + message list
     Message.tsx         # one turn; renders displayContent ?? content for user turns
     InputBar.tsx        # <textarea> submit/clear; piped-input border title
-    StatusBar.tsx       # model · persona · status · ctx% · cost
+    StatusBar.tsx       # model · persona · status · ctx% · cost — responsive right side (progressive compaction by terminal width)
     Toast.tsx           # transient copy-confirmation overlay
     ThinkingIndicator.tsx  # braille spinner + scrolling reasoning preview (tailWrap, 80ms frame interval)
-    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines
+    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines; ModelsModal list view has /-triggered type-to-filter and wrap-around list nav
     CommandSuggestions.tsx  # floating slash-command autosuggestion popup
 prompts/                # bundled seed — copied to ~/.config/openchat/prompts/ on first run
   _global.md, 0-default.md, 1-hacker.md, 2-developer.md, 3-writer.md
