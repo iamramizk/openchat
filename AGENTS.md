@@ -101,7 +101,10 @@ default, or leave it and drop the new default in `prompts/new/` for manual revie
   the terminal narrows — hide the hint → drop the status label (dot only) → drop the `ctx: `
   prefix → drop the token count → trim cost to one fewer decimal → drop the `│` dividers
   (falling back to the container's `gap`) — and reverses automatically as it widens. No-model
-  state shows blue `/connect`/`/models` guidance.
+  state shows `no model configured` (accent) plus a helper hint that joins all three guidance
+  segments (`/connect …`, `/models …`, `ctrl+c exit`) when they fit, or cycles through them one
+  at a time every ~2.2s (`NoModelHint` in `StatusBar.tsx`) when the terminal is too narrow,
+  clamping the shown text to the available width so it never overflows.
 
 ## Core Behaviour
 
@@ -170,10 +173,10 @@ src/
     ChatPane.tsx        # <scrollbox> + message list
     Message.tsx         # one turn; renders displayContent ?? content for user turns
     InputBar.tsx        # <textarea> submit/clear; piped-input border title
-    StatusBar.tsx       # model · persona · status · ctx% · cost — responsive right side (progressive compaction by terminal width)
+    StatusBar.tsx       # model · persona · status · ctx% · cost — responsive right side (progressive compaction by terminal width); no-model empty state ticks through helper hints (NoModelHint) when they don't all fit
     Toast.tsx           # transient copy-confirmation overlay
     ThinkingIndicator.tsx  # braille spinner + scrolling reasoning preview (tailWrap, 80ms frame interval)
-    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines; ModelsModal list view has /-triggered type-to-filter and wrap-around list nav
+    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines; ModelsModal list view has /-triggered type-to-filter and wrap-around list nav; shared ModalShell renders a centered accent title + optional centered white subtitle (current step) + bottom faint keymap hint, and reserves fixed hint/list heights so the /models list doesn't jump when filtering
     CommandSuggestions.tsx  # floating slash-command autosuggestion popup
 prompts/                # bundled seed — copied to ~/.config/openchat/prompts/ on first run
   _global.md, 0-default.md, 1-hacker.md, 2-developer.md, 3-writer.md

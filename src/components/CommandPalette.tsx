@@ -177,10 +177,11 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models  a add · esc cancel"
+          title="models"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="a add · esc cancel"
         >
           <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
             <text fg={colors.textMuted}>
@@ -202,7 +203,8 @@ export function ModelsModal({
       return (
         <Overlay>
           <ModalShell
-            title="/models · add model — no connected providers"
+            title="models"
+            subtitle="add model — no connected providers"
             innerWidth={innerW}
             bgColor={bgColor}
             footer={configFile()}
@@ -226,10 +228,12 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models · add — pick provider · esc back"
+          title="models"
+          subtitle="add — pick provider"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="esc back"
         >
           <select
             options={options}
@@ -278,7 +282,8 @@ export function ModelsModal({
       return (
         <Overlay>
           <ModalShell
-            title="/models · add · Ollama — fetching installed models…"
+            title="models"
+            subtitle="add · Ollama — fetching installed models…"
             innerWidth={innerW}
             bgColor={bgColor}
             footer={configFile()}
@@ -295,10 +300,12 @@ export function ModelsModal({
       return (
         <Overlay>
           <ModalShell
-            title="/models · add · Ollama — no models found · esc back"
+            title="models"
+            subtitle="add · Ollama — no models found"
             innerWidth={innerW}
             bgColor={bgColor}
             footer={configFile()}
+            hint="esc back"
           >
             <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
               <text fg={colors.yellow}>
@@ -323,10 +330,12 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models · add · Ollama — pick model · esc back"
+          title="models"
+          subtitle="add · Ollama — pick model"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="esc back"
         >
           <select
             options={ollamaOptions}
@@ -362,10 +371,12 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title={`/models · add · ${providerLabel} — model id · esc back`}
+          title="models"
+          subtitle={`add · ${providerLabel} — model id`}
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="esc back"
         >
           <box
             style={{
@@ -419,10 +430,12 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models · add — display name · esc back"
+          title="models"
+          subtitle="add — display name"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="esc back"
         >
           <box
             style={{
@@ -479,7 +492,9 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models · rename — new name · esc back"
+          title="models"
+          subtitle="rename — new name"
+          hint="esc back"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
@@ -538,15 +553,15 @@ export function ModelsModal({
     return (
       <Overlay>
         <ModalShell
-          title="/models · delete — confirm"
+          title="models"
+          subtitle="delete — confirm"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={configFile()}
+          hint="d or y confirm · any other key cancel"
         >
           <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
-            <text fg={colors.yellow}>
-              {`Delete "${target}"?  press d or y to confirm · any other key to cancel`}
-            </text>
+            <text fg={colors.yellow}>{`Delete "${target}"?`}</text>
           </box>
         </ModalShell>
       </Overlay>
@@ -583,7 +598,7 @@ export function ModelsModal({
   return (
     <Overlay>
       <ModalShell
-        title="/models"
+        title="models"
         innerWidth={innerW}
         bgColor={bgColor}
         footer={configFile()}
@@ -731,10 +746,11 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
     return (
       <Overlay>
         <ModalShell
-          title="/connect  ↑↓ navigate · enter select · a add custom · d delete · esc cancel"
+          title="connect"
           innerWidth={innerW}
           bgColor={bgColor}
           footer={authFile()}
+          hint="↑↓ navigate · enter select · a add custom · d delete · esc cancel"
         >
           <select
             options={options}
@@ -767,11 +783,16 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
     const target = highlighted?.label ?? "?"
     return (
       <Overlay>
-        <ModalShell title="/connect · delete — confirm" innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+        <ModalShell
+          title="connect"
+          subtitle="delete — confirm"
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={authFile()}
+          hint="d or y confirm · any other key cancel"
+        >
           <box style={{ paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1 }}>
-            <text fg={colors.yellow}>
-              {`Delete "${target}"?  press d or y to confirm · any other key to cancel`}
-            </text>
+            <text fg={colors.yellow}>{`Delete "${target}"?`}</text>
           </box>
         </ModalShell>
       </Overlay>
@@ -782,7 +803,14 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   if (step === "add-name") {
     return (
       <Overlay>
-        <ModalShell title="/connect · add custom — name · esc back" innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+        <ModalShell
+          title="connect"
+          subtitle="add custom — name"
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={authFile()}
+          hint="esc back"
+        >
           <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
             <text fg={colors.textFaint}>Display name for this provider (e.g. LM Studio):</text>
             <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
@@ -816,7 +844,14 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   if (step === "add-url") {
     return (
       <Overlay>
-        <ModalShell title={`/connect · add custom · ${pendingName} — base URL · esc back`} innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+        <ModalShell
+          title="connect"
+          subtitle={`add custom · ${pendingName} — base URL`}
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={authFile()}
+          hint="esc back"
+        >
           <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
             <text fg={colors.textFaint}>OpenAI-compatible base URL (e.g. http://localhost:1234/v1):</text>
             <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
@@ -850,7 +885,14 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   if (step === "add-key") {
     return (
       <Overlay>
-        <ModalShell title={`/connect · add custom · ${pendingName} — API key · esc back`} innerWidth={innerW} bgColor={bgColor} footer={authFile()}>
+        <ModalShell
+          title="connect"
+          subtitle={`add custom · ${pendingName} — API key`}
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={authFile()}
+          hint="esc back"
+        >
           <box style={{ flexDirection: "column", paddingLeft: 2, paddingRight: 2, paddingTop: 1, paddingBottom: 1, gap: 1, width: innerW }}>
             <text fg={colors.textFaint}>API key (enter to save, leave blank if no key is needed):</text>
             <box style={{ flexDirection: "row", border: true, borderStyle: "rounded", borderColor: colors.border, paddingLeft: 1, paddingRight: 1 }}>
@@ -890,10 +932,12 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
     return (
       <Overlay>
         <ModalShell
-          title={`/connect · ${providerLabel}  enter save · esc back`}
+          title="connect"
+          subtitle={providerLabel}
           innerWidth={innerW}
           bgColor={bgColor}
           footer={authFile()}
+          hint="enter save · esc back"
         >
           <box
             style={{
@@ -951,10 +995,12 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   return (
     <Overlay>
       <ModalShell
-        title={`/connect · ${providerLabel}  enter save · esc back`}
+        title="connect"
+        subtitle={providerLabel}
         innerWidth={innerW}
         bgColor={bgColor}
         footer={authFile()}
+        hint="enter save · esc back"
       >
         <box
           style={{
@@ -1036,6 +1082,7 @@ function Overlay({ children }: { children: React.ReactNode }) {
 
 function ModalShell({
   title,
+  subtitle,
   innerWidth,
   bgColor,
   footer,
@@ -1044,6 +1091,10 @@ function ModalShell({
   children,
 }: {
   title: string
+  /** Step description shown centered on its own line under `title`, in `colors.text` —
+   * keeps the bare command name as the title while still naming the current step
+   * (e.g. "add — pick provider", a provider label). Any keymap text belongs in `hint`. */
+  subtitle?: string
   innerWidth: number
   bgColor: string
   footer?: string
@@ -1062,9 +1113,11 @@ function ModalShell({
         width: innerWidth + 6,
       }}
     >
-      {/* Title bar */}
+      {/* Title bar: command name, plus an optional step subtitle on the line below */}
       <box
         style={{
+          flexDirection: "column",
+          alignItems: "center",
           paddingLeft: 2,
           paddingRight: 2,
           paddingTop: 1,
@@ -1073,6 +1126,7 @@ function ModalShell({
         }}
       >
         <text fg={colors.accent}>{title}</text>
+        {subtitle && <text fg={colors.text}>{subtitle}</text>}
       </box>
 
       {children}
