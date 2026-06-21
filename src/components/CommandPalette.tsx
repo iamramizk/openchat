@@ -58,17 +58,57 @@ export function ModelsModal({
   const [ollamaModels, setOllamaModels] = useState<string[]>([])
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [ollamaError, setOllamaError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [searching, setSearching] = useState(false)
 
   const modelIdRef = useRef<{ plainText?: string } | null>(null)
   const nameRef = useRef<{ plainText?: string } | null>(null)
 
+  // "list" mode shows a filtered view of `models`; highlightIndex indexes into `filtered`
+  // (translated back to a real `models` index — `.idx` — before acting on it).
+  const q = query.trim().toLowerCase()
+  const filtered = models
+    .map((entry, idx) => ({ entry, idx }))
+    .filter(({ entry }) => q === "" || `${entry.name} ${entry.provider} ${entry.model}`.toLowerCase().includes(q))
+
   useKeyboard((key) => {
     if (mode === "list") {
-      if (key.name === "escape") { onClose(); return }
+      if (searching) {
+        if (key.name === "escape") { setSearching(false); return }
+        if (key.name === "backspace") {
+          setQuery((s) => s.slice(0, -1))
+          setHighlightIndex(0)
+          return
+        }
+        // Printable keys (letters/digits/symbols/space) extend the query; named keys
+        // (arrows, return, tab…) fall through untouched to the focused <select> below,
+        // so ↑↓ still moves the highlight and Enter still selects it while filtering.
+        const isPrintable = !key.ctrl && !key.meta && (key.name === "space" || key.name.length === 1)
+        if (isPrintable) {
+          key.preventDefault()
+          setQuery((s) => s + (key.name === "space" ? " " : key.sequence || key.name))
+          setHighlightIndex(0)
+        }
+        return
+      }
+
+      if (key.name === "escape") {
+        if (query) { setQuery(""); setHighlightIndex(0) } else { onClose() }
+        return
+      }
+      if (key.name === "/" && models.length > 0) { setSearching(true); return }
       if (key.name === "a") { setMode("add-provider"); return }
-      if (key.name === "d" && models.length > 0) { setMode("confirm-delete"); return }
-      if (key.name === "f" && models.length > 0) { onSetDefault(highlightIndex); return }
-      if (key.name === "r" && models.length > 0) { setMode("rename"); return }
+      if (key.name === "d" && filtered.length > 0) {
+        setHighlightIndex(filtered[highlightIndex]?.idx ?? 0)
+        setMode("confirm-delete")
+        return
+      }
+      if (key.name === "f" && filtered.length > 0) { onSetDefault(filtered[highlightIndex]?.idx ?? 0); return }
+      if (key.name === "r" && filtered.length > 0) {
+        setHighlightIndex(filtered[highlightIndex]?.idx ?? 0)
+        setMode("rename")
+        return
+      }
     }
 
     if (mode === "confirm-delete") {
@@ -79,6 +119,7 @@ export function ModelsModal({
         return
       }
       // any other key (including esc) cancels
+      setHighlightIndex(0)
       setMode("list")
       return
     }
@@ -98,7 +139,7 @@ export function ModelsModal({
     }
 
     if (mode === "rename") {
-      if (key.name === "escape") { setMode("list"); return }
+      if (key.name === "escape") { setHighlightIndex(0); setMode("list"); return }
     }
   })
 
@@ -451,6 +492,7 @@ export function ModelsModal({
                   if (raw) {
                     onRenameModel(highlightIndex, raw)
                   }
+                  setHighlightIndex(0)
                   setMode("list")
                 }}
               />
@@ -484,7 +526,7 @@ export function ModelsModal({
 
   // ---- main list ----
   const providers = effectiveProviders(auth)
-  const options = models.map((entry, idx) => {
+  const options = filtered.map(({ entry, idx }) => {
     const provDef = providers[entry.provider]
     const hasKey = Boolean(auth.providers[entry.provider]?.api_key)
     const isDefault = idx === defaultModelIndex
@@ -494,42 +536,71 @@ export function ModelsModal({
     return { name: entry.name, description: descParts.join("  "), value: entry.name }
   })
 
-  const listHeight = Math.min(models.length, 6) * 2
+  const listHeight = Math.min(filtered.length, 6) * 2
+  const searchText = searching ? `${query}▏` : query || "Type / to filter"
+  const searchColor = query || searching ? colors.text : colors.textFaint
+  const hint = searching
+    ? "type to filter · ↑↓ navigate · enter select · esc done"
+    : "↑↓ navigate · enter select · / filter · a add · d delete · f default · r rename · esc cancel"
 
   return (
     <Overlay>
-      <ModalShell
-        title="/models  ↑↓ navigate · enter select · a add · d delete · f default · r rename · esc cancel"
-        innerWidth={innerW}
-        bgColor={bgColor}
-        footer={configFile()}
-      >
-        <select
-          options={options}
-          selectedIndex={highlightIndex}
-          width={innerW}
-          height={listHeight}
-          backgroundColor={bgColor}
-          focusedBackgroundColor={bgColor}
-          selectedBackgroundColor={bgColor}
-          selectedTextColor={colors.text}
-          textColor={colors.textMuted}
-          descriptionColor={colors.textFaint}
-          selectedDescriptionColor={colors.textMuted}
-          showScrollIndicator
-          focused
-          onChange={(index: number) => {
-            setHighlightIndex(index)
+      <ModalShell title="/models" innerWidth={innerW} bgColor={bgColor} footer={configFile()} hint={hint}>
+        <box
+          style={{
+            flexDirection: "column",
+            paddingLeft: 2,
+            paddingRight: 2,
+            paddingBottom: 1,
+            gap: 1,
+            width: innerW,
           }}
-          onSelect={(_index: number, option: SelectOption | null) => {
-            if (!option) return
-            const idx = models.findIndex((m) => m.name === option.value)
-            if (idx >= 0) {
-              onSelect(idx)
-              onClose()
-            }
-          }}
-        />
+        >
+          <box
+            style={{
+              flexDirection: "row",
+              border: true,
+              borderStyle: "rounded",
+              borderColor: searching ? colors.accent : colors.border,
+              paddingLeft: 1,
+              paddingRight: 1,
+            }}
+          >
+            <text fg={searchColor}>{searchText}</text>
+          </box>
+
+          {filtered.length === 0 ? (
+            <text fg={colors.textMuted}>{`No models match "${query}"`}</text>
+          ) : (
+            <select
+              options={options}
+              selectedIndex={highlightIndex}
+              width={innerW}
+              height={listHeight}
+              backgroundColor={bgColor}
+              focusedBackgroundColor={bgColor}
+              selectedBackgroundColor={bgColor}
+              selectedTextColor={colors.text}
+              textColor={colors.textMuted}
+              descriptionColor={colors.textFaint}
+              selectedDescriptionColor={colors.textMuted}
+              showScrollIndicator
+              wrapSelection
+              focused
+              onChange={(index: number) => {
+                setHighlightIndex(index)
+              }}
+              onSelect={(_index: number, option: SelectOption | null) => {
+                if (!option) return
+                const idx = models.findIndex((m) => m.name === option.value)
+                if (idx >= 0) {
+                  onSelect(idx)
+                  onClose()
+                }
+              }}
+            />
+          )}
+        </box>
       </ModalShell>
     </Overlay>
   )
@@ -922,12 +993,14 @@ function ModalShell({
   innerWidth,
   bgColor,
   footer,
+  hint,
   children,
 }: {
   title: string
   innerWidth: number
   bgColor: string
   footer?: string
+  hint?: string
   children: React.ReactNode
 }) {
   return (
@@ -952,6 +1025,21 @@ function ModalShell({
       </box>
 
       {children}
+
+      {/* Shortcut hints, moved to the bottom so the title bar stays short */}
+      {hint && (
+        <box
+          style={{
+            paddingLeft: 2,
+            paddingRight: 2,
+            paddingTop: 1,
+            paddingBottom: footer ? 0 : 1,
+            flexShrink: 0,
+          }}
+        >
+          <text fg={colors.textFaint}>{hint}</text>
+        </box>
+      )}
 
       {/* Footer: file path */}
       {footer && (
