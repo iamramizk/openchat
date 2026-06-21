@@ -8,6 +8,35 @@ import { fetchInstalledModels } from "../completions.ts"
 import { colors } from "../theme.ts"
 import { configFile, authFile } from "../paths.ts"
 
+/**
+ * How many lines `text` word-wraps to at `width` columns (mirrors the wrap rule used
+ * by the renderer's own word-wrap, see ThinkingIndicator.tsx's `tailWrap`). Used to
+ * reserve a fixed number of rows for hint text so swapping between two hint strings of
+ * different lengths doesn't change a modal's overall height (and re-center it).
+ */
+function countWrappedLines(text: string, width: number): number {
+  if (width <= 0) return 1
+  let lines = 0
+  for (const paragraph of text.split("\n")) {
+    if (paragraph === "") {
+      lines++
+      continue
+    }
+    let current = ""
+    for (const word of paragraph.split(" ")) {
+      const candidate = current ? `${current} ${word}` : word
+      if (candidate.length > width && current) {
+        lines++
+        current = word
+      } else {
+        current = candidate
+      }
+    }
+    lines++ // final (or only) line of the paragraph
+  }
+  return Math.max(lines, 1)
+}
+
 // ---------------------------------------------------------------------------
 // /models modal — list, add (a), delete (d), set-default (f), select (enter)
 // ---------------------------------------------------------------------------
@@ -536,16 +565,31 @@ export function ModelsModal({
     return { name: entry.name, description: descParts.join("  "), value: entry.name }
   })
 
-  const listHeight = Math.min(filtered.length, 6) * 2
+  // Reserve list/hint heights based on the *unfiltered* model count and the *longer* of
+  // the two hint strings, so toggling search mode or narrowing a filter never changes the
+  // modal's overall height (it's vertically centered — any height change visibly jumps it).
+  const listHeight = Math.min(models.length, 6) * 2
   const searchText = searching ? `${query}▏` : query || "Type / to filter"
   const searchColor = query || searching ? colors.text : colors.textFaint
-  const hint = searching
-    ? "type to filter · ↑↓ navigate · enter select · esc done"
-    : "↑↓ navigate · enter select · / filter · a add · d delete · f default · r rename · esc cancel"
+  const listHint = "↑↓ navigate · enter select · / filter · a add · d delete · f default · r rename · esc cancel"
+  const searchHint = "type to filter · ↑↓ navigate · enter select · esc done"
+  const hint = searching ? searchHint : listHint
+  const hintWrapWidth = innerW + 2 // ModalShell width (innerW + 6) minus the hint box's 2+2 padding
+  const hintReserveLines = Math.max(
+    countWrappedLines(listHint, hintWrapWidth),
+    countWrappedLines(searchHint, hintWrapWidth),
+  )
 
   return (
     <Overlay>
-      <ModalShell title="/models" innerWidth={innerW} bgColor={bgColor} footer={configFile()} hint={hint}>
+      <ModalShell
+        title="/models"
+        innerWidth={innerW}
+        bgColor={bgColor}
+        footer={configFile()}
+        hint={hint}
+        hintReserveLines={hintReserveLines}
+      >
         <box
           style={{
             flexDirection: "column",
@@ -570,7 +614,9 @@ export function ModelsModal({
           </box>
 
           {filtered.length === 0 ? (
-            <text fg={colors.textMuted}>{`No models match "${query}"`}</text>
+            <box style={{ height: listHeight, justifyContent: "flex-start" }}>
+              <text fg={colors.textMuted}>{`No models match "${query}"`}</text>
+            </box>
           ) : (
             <select
               options={options}
@@ -994,6 +1040,7 @@ function ModalShell({
   bgColor,
   footer,
   hint,
+  hintReserveLines,
   children,
 }: {
   title: string
@@ -1001,6 +1048,10 @@ function ModalShell({
   bgColor: string
   footer?: string
   hint?: string
+  /** Reserve this many content rows for `hint` regardless of how many lines it actually
+   * wraps to — keeps the modal's overall height (and thus its centered position) stable
+   * when the caller swaps in a shorter/longer hint string (e.g. /models search mode). */
+  hintReserveLines?: number
   children: React.ReactNode
 }) {
   return (
@@ -1035,6 +1086,9 @@ function ModalShell({
             paddingTop: 1,
             paddingBottom: footer ? 0 : 1,
             flexShrink: 0,
+            ...(hintReserveLines !== undefined
+              ? { height: hintReserveLines + 1 + (footer ? 0 : 1) }
+              : {}),
           }}
         >
           <text fg={colors.textFaint}>{hint}</text>

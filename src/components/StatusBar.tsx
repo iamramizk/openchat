@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useTerminalDimensions } from "@opentui/react"
 import { colors } from "../theme.ts"
 import type { SessionStats, ModelInfo, ModelEntry, ActiveConnection } from "../types.ts"
@@ -40,6 +41,37 @@ function formatContext(
   const pct = Math.round((stats.totalTokens / stats.contextLength) * 100)
   if (stats.totalTokens === 0 || !showTokens) return `${prefix}${pct}%`
   return `${prefix}${pct}% ${formatTokens(stats.totalTokens)}`
+}
+
+// Helper hints shown when no model/provider is configured yet (fresh install). On wide
+// terminals they're joined into one line; once that line wouldn't fit, cycle through them
+// one at a time like a ticker rather than letting the line overflow.
+const NO_MODEL_SEGMENTS = ["/connect add credentials", "/models switch model", "ctrl+c exit"]
+const NO_MODEL_FULL = NO_MODEL_SEGMENTS.join(" · ")
+const TICKER_MS = 2200
+
+/** Clamp `text` to `width` columns so it never overflows even at extreme terminal widths
+ * (e.g. a narrower terminal than any single ticker segment). */
+function clampToWidth(text: string, width: number): string {
+  if (width <= 0) return ""
+  if (text.length <= width) return text
+  return width === 1 ? "…" : `${text.slice(0, width - 1)}…`
+}
+
+function NoModelHint({ availableWidth }: { availableWidth: number }) {
+  const fits = NO_MODEL_FULL.length <= availableWidth
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    if (fits) return
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % NO_MODEL_SEGMENTS.length)
+    }, TICKER_MS)
+    return () => clearInterval(id)
+  }, [fits])
+
+  const text = fits ? NO_MODEL_FULL : NO_MODEL_SEGMENTS[index]
+  return <text fg={colors.textFaint}>{clampToWidth(text, availableWidth)}</text>
 }
 
 export function StatusBar({
@@ -119,7 +151,7 @@ export function StatusBar({
         }}
       >
         <text fg={colors.accent}>no model configured</text>
-        <text fg={colors.textFaint}>/connect add credentials · /models switch model · ctrl+c exit</text>
+        <NoModelHint availableWidth={width - 4 - "no model configured".length - 2} />
       </box>
     )
   }
