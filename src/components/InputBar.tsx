@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef } from "react"
 import type { TextareaRenderable } from "@opentui/core"
 import { colors } from "../theme.ts"
 
@@ -15,12 +15,6 @@ interface Props {
 
 export function InputBar({ isStreaming, inputKey, promptChar, promptColor, pipedTitle, onContentChange, onSubmit }: Props) {
   const textareaRef = useRef<TextareaRenderable>(null)
-  const [textHeight, setTextHeight] = useState(1)
-
-  // Reset height when textarea remounts after a send (inputKey increments)
-  useEffect(() => {
-    setTextHeight(1)
-  }, [inputKey])
 
   const placeholder = isStreaming
     ? "waiting for response..."
@@ -28,11 +22,7 @@ export function InputBar({ isStreaming, inputKey, promptChar, promptColor, piped
   const borderColor = isStreaming ? colors.textFaint : colors.border
 
   function handleContentChange() {
-    const text = textareaRef.current?.plainText ?? ""
-    onContentChange(text)
-    const lines = (text.match(/\n/g) ?? []).length + 1
-    const clamped = Math.min(Math.max(lines, 1), 8)
-    if (clamped !== textHeight) setTextHeight(clamped)
+    onContentChange(textareaRef.current?.plainText ?? "")
   }
 
   return (
@@ -63,8 +53,8 @@ export function InputBar({ isStreaming, inputKey, promptChar, promptColor, piped
         placeholder={placeholder}
         focused={!isStreaming}
         wrapMode="word"
-        height={textHeight}
-        style={{ flexGrow: 1 }}
+        height="auto"
+        style={{ flexGrow: 1, maxHeight: 8 }}
         textColor={colors.text}
         placeholderColor={colors.textFaint}
         cursorColor={colors.accent}
