@@ -245,10 +245,28 @@ renderer.setTerminalTitle("openchat")
 // ---------------------------------------------------------------------------
 // Tree-sitter: register extra languages and initialize the global client.
 // The client reference itself is needed synchronously as an <App> prop, but
-// the actual worker setup + wasm init is deferred until after the first
-// render — the first frame (empty chat + status bar) needs none of it, and
-// it's only exercised once the first assistant markdown message streams.
+// the actual wasm init is deferred until after the first render — the first
+// frame (empty chat + status bar) needs none of it, and it's only exercised
+// once the first assistant markdown message streams.
+//
+// OTUI_TREE_SITTER_WORKER_PATH MUST be set before getTreeSitterClient(): the
+// TreeSitterClient constructor auto-starts the worker, and startWorker()
+// reads this env var synchronously at that moment. ensureWorker() is cheap
+// (writeIfStale skips disk I/O on warm starts), so doing it here doesn't
+// undermine the deferred-init optimization below — only the heavy
+// addDefaultParsers + initialize() stay deferred past first paint.
+//
+// In a compiled binary, workers cannot be spawned from bunfs paths (Bun
+// 1.3.x), and the empty-env fallback (`new URL("./parser.worker.ts", ...)`)
+// resolves to an unspawnable /$bunfs/ path there — it only happens to work
+// in `bun run` because that fallback finds the real on-disk
+// node_modules/@opentui/core/parser.worker.js. The workaround: ensureWorker()
+// writes a pre-built worker bundle + its wasm dependency to the data dir
+// (only if missing or stale), then we point opentui at that on-disk file.
+// Both files are small (~200KB each).
 // ---------------------------------------------------------------------------
+
+process.env.OTUI_TREE_SITTER_WORKER_PATH = ensureWorker(wasmSourcePath)
 
 const treeSitterClient = getTreeSitterClient()
 const dataPaths = getDataPaths()
@@ -277,16 +295,10 @@ createRoot(renderer).render(
 // Bun workers don't expose globalThis.close, which opentui uses to detect the
 // worker context — so `bun-worker-shim.ts` polyfills it before importing the
 // real parser worker.
-//
-// In a compiled binary, workers cannot be spawned from bunfs paths (Bun 1.3.x).
-// The workaround: ensureWorker() writes a pre-built worker bundle + its wasm
-// dependency to the data dir (only if missing or stale), then we point opentui
-// at that on-disk file. Both files are small (~200KB each).
 // ---------------------------------------------------------------------------
 
 void (async () => {
   try {
-    process.env.OTUI_TREE_SITTER_WORKER_PATH = ensureWorker(wasmSourcePath)
     addDefaultParsers(EXTRA_PARSERS)
     await treeSitterClient.initialize()
   } catch (err) {
