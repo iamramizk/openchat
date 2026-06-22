@@ -43,7 +43,7 @@ export function InputBar({ isStreaming, inputKey, promptChar, promptColor, piped
       }}
     >
       {/* Prompt marker */}
-      <text fg={isStreaming ? colors.textFaint : promptColor} style={{ marginRight: 1 }}>
+      <text fg={isStreaming ? colors.textFaint : promptColor} style={{ marginRight: 1, flexShrink: 0 }}>
         {promptChar}
       </text>
 
