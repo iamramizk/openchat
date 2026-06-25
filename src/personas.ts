@@ -60,9 +60,30 @@ export function loadPersonas(dir = promptsDir()): { global: string; personas: Pe
 }
 
 // ---------------------------------------------------------------------------
-// Compose the final system prompt: global preamble + active persona role
+// Current-date metadata: injected into every system prompt so the model
+// never has to guess "today" — recomputed per turn, pure computation (no I/O),
+// so it adds no startup cost and stays accurate across long sessions.
+// ---------------------------------------------------------------------------
+
+/** A single metadata line stating the user's current local date/time + timezone. */
+export function currentDateMeta(now = new Date()): string {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const formatted = new Intl.DateTimeFormat("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(now)
+  return `Current date and time: ${formatted} (${tz}).`
+}
+
+// ---------------------------------------------------------------------------
+// Compose the final system prompt: global preamble + date metadata + persona role
 // ---------------------------------------------------------------------------
 
 export function composeSystemPrompt(global: string, persona: Persona): string {
-  return `${global}\n\n${persona.content}`.trim()
+  return `${global}\n\n${currentDateMeta()}\n\n${persona.content}`.trim()
 }
