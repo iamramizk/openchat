@@ -25,6 +25,7 @@ const COMMANDS: CommandDef[] = [
   { name: "/models",  description: "switch model" },
   { name: "/connect", description: "add provider credentials" },
   { name: "/reset",   description: "clear conversation, keep persona & model" },
+  { name: "/copy",    description: "copy last assistant response to clipboard" },
 ]
 
 let _nextId = 0
@@ -226,6 +227,22 @@ export function App({
   }
 
   // -------------------------------------------------------------------------
+  // /copy: copy the last assistant response to the clipboard. `msg.content`
+  // never includes the "⏹ stopped" marker (it's rendered separately in
+  // Message.tsx), so a stopped reply is copied clean.
+  // -------------------------------------------------------------------------
+
+  function handleCopy() {
+    const lastAssistant = [...messagesRef.current].reverse().find((m) => m.role === "assistant")
+    if (!lastAssistant || !lastAssistant.content.trim()) {
+      showToast("Nothing to copy")
+      return
+    }
+    copyToClipboard(renderer, lastAssistant.content)
+    showToast("✓ Copied last response")
+  }
+
+  // -------------------------------------------------------------------------
   // Keyboard shortcuts (global)
   // -------------------------------------------------------------------------
 
@@ -399,6 +416,8 @@ export function App({
         setModal("connect")
       } else if (resolved?.name === "/reset") {
         handleReset()
+      } else if (resolved?.name === "/copy") {
+        handleCopy()
       } else if (prefixMatches.length > 1) {
         showToast(`Ambiguous command: ${token}  (did you mean ${prefixMatches.map((c) => c.name).join(" or ")}?)`)
       } else {

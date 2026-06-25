@@ -207,6 +207,7 @@ them against the latest bundled defaults, but only overwrites files you haven't 
 | `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; keyless providers show `✓ no key needed`. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank for local servers); `d` — delete a custom provider (confirm), shown with a `· custom` marker; built-in providers can't be deleted. Saves to `auth.json` immediately. |
 | `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
 | `/reset` | Clears the conversation and session token/cost counters, keeping your active persona, model, and credentials — a fresh session without restarting. |
+| `/copy` | Copies the last assistant response to the clipboard. |
 
 **Binary subcommands (run from your terminal):**
 
