@@ -28,11 +28,13 @@ export const PROMPT_HASH_HISTORY: Record<string, string[]> = {
   ],
   "1-hacker.md": [
     "72d21b62a518e3f1f2749ab23c204a6ef7dfff416bd3a5072c19cd2a56d4e5ef",
-    "3094280c8c933153054f88d2874f164e80a6f153d1ff0b5ce3cf30f822610139"
+    "3094280c8c933153054f88d2874f164e80a6f153d1ff0b5ce3cf30f822610139",
+    "2508f0a7706bd63acf978ea92011c9af9477c6753aa864186b263ea376b1ac71"
   ],
   "2-developer.md": [
     "9733b0d235ebd93a5c3f40629a33f212768446e5c700f2b27800cc3802535ea5",
-    "7c8c9506e0723e4a8b0dac9bfff3cb53a7653233225ba4ec1a4781ab3e827354"
+    "7c8c9506e0723e4a8b0dac9bfff3cb53a7653233225ba4ec1a4781ab3e827354",
+    "19cdb7927ffee6c568d7160f4716d274493d3611bb3e522b514e93275eb2cd38"
   ],
   "3-writer.md": [
     "255122d7668fd1fe7fd064c6c533118e784653e3a19a20e9e2a8c0f7e3a2a50b",
@@ -40,6 +42,7 @@ export const PROMPT_HASH_HISTORY: Record<string, string[]> = {
   ],
   "_global.md": [
     "c9a56e039ae5f33d573a68c84bd19af357e55049d27b228d78458cb1db7ea05f",
-    "c7ccab3acc35ab675ab8eff96bc8b5a989ca8ecb40b8268e759743ffe0df2754"
+    "c7ccab3acc35ab675ab8eff96bc8b5a989ca8ecb40b8268e759743ffe0df2754",
+    "07d426e32dd229a0ae61c3cbbcd41f6cf160d42f893d62290a7580152e3678bf"
   ]
 }
