@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react"
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
-import type { SelectOption } from "@opentui/core"
+import type { SelectOption, TextareaRenderable } from "@opentui/core"
 import type { ModelEntry } from "../types.ts"
 import type { AuthStore } from "../auth.ts"
 import { effectiveProviderList, effectiveProviders, isCustomProvider } from "../providers.ts"
 import { fetchInstalledModels } from "../completions.ts"
+import { validateModelConfig } from "../model-config.ts"
 import { colors } from "../theme.ts"
 import { configFile, authFile } from "../paths.ts"
 
@@ -52,6 +53,7 @@ interface ModelsModalProps {
   onDeleteModel: (index: number) => void
   onSetDefault: (index: number) => void
   onRenameModel: (index: number, newName: string) => void
+  onSetModelConfig: (index: number, config?: Record<string, unknown>) => void
   onClose: () => void
 }
 
@@ -63,6 +65,7 @@ type ModelsMode =
   | "add-name"
   | "confirm-delete"
   | "rename"
+  | "config"
 
 export function ModelsModal({
   models,
@@ -75,6 +78,7 @@ export function ModelsModal({
   onDeleteModel,
   onSetDefault,
   onRenameModel,
+  onSetModelConfig,
   onClose,
 }: ModelsModalProps) {
   const { width } = useTerminalDimensions()
@@ -92,6 +96,9 @@ export function ModelsModal({
 
   const modelIdRef = useRef<{ plainText?: string } | null>(null)
   const nameRef = useRef<{ plainText?: string } | null>(null)
+  const configRef = useRef<TextareaRenderable | null>(null)
+  const [configText, setConfigText] = useState("")
+  const [configStatus, setConfigStatus] = useState<{ msg: string; valid: boolean } | null>(null)
 
   // "list" mode shows a filtered view of `models`; highlightIndex indexes into `filtered`
   // (translated back to a real `models` index — `.idx` — before acting on it).
@@ -99,6 +106,24 @@ export function ModelsModal({
   const filtered = models
     .map((entry, idx) => ({ entry, idx }))
     .filter(({ entry }) => q === "" || `${entry.name} ${entry.provider} ${entry.model}`.toLowerCase().includes(q))
+
+  // Debounced live JSON lint for the config editor
+  useEffect(() => {
+    if (mode !== "config") return
+    if (!configText.trim()) {
+      setConfigStatus(null)
+      return
+    }
+    const timer = setTimeout(() => {
+      const result = validateModelConfig(configText)
+      if (result.ok) {
+        setConfigStatus({ msg: "✓ Valid JSON", valid: true })
+      } else {
+        setConfigStatus({ msg: `✗ ${result.error}`, valid: false })
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [configText, mode])
 
   useKeyboard((key) => {
     if (mode === "list") {
@@ -136,6 +161,29 @@ export function ModelsModal({
       if (key.name === "r" && filtered.length > 0) {
         setHighlightIndex(filtered[highlightIndex]?.idx ?? 0)
         setMode("rename")
+        return
+      }
+      if (key.name === "c" && filtered.length > 0) {
+        const realIdx = filtered[highlightIndex]?.idx ?? 0
+        setHighlightIndex(realIdx)
+        const existing = models[realIdx]?.config
+        const initial = existing ? JSON.stringify(existing, null, 2) : ""
+        setConfigText(initial)
+        setConfigStatus(null)
+        setMode("config")
+        return
+      }
+    }
+
+    if (mode === "config") {
+      if (key.name === "escape") {
+        setMode("list")
+        return
+      }
+      // Tab → insert two spaces rather than trapping focus
+      if (key.name === "tab") {
+        key.preventDefault()
+        configRef.current?.insertText("  ")
         return
       }
     }
@@ -547,6 +595,88 @@ export function ModelsModal({
     )
   }
 
+  // ---- model config ----
+  if (mode === "config") {
+    const configEntry = models[highlightIndex]
+    const modelName = configEntry?.name ?? "?"
+
+    return (
+      <Overlay>
+        <ModalShell
+          title="models"
+          subtitle={`config · ${modelName}`}
+          innerWidth={innerW}
+          bgColor={bgColor}
+          footer={configFile()}
+          hint="enter save · shift+⏎ newline · tab → 2 spaces · esc cancel"
+        >
+          <box
+            style={{
+              flexDirection: "column",
+              paddingLeft: 2,
+              paddingRight: 2,
+              paddingTop: 1,
+              paddingBottom: 1,
+              gap: 1,
+              width: innerW,
+            }}
+          >
+            <text fg={colors.textFaint}>
+              {"Extra JSON params merged into the request (empty to clear):"}
+            </text>
+            <box
+              style={{
+                flexDirection: "row",
+                border: true,
+                borderStyle: "rounded",
+                borderColor: colors.accent,
+                paddingLeft: 1,
+                paddingRight: 1,
+              }}
+            >
+              <textarea
+                key={`config-${modelName}`}
+                ref={configRef as React.Ref<any>}
+                wrapMode="word"
+                height="auto"
+                style={{ flexGrow: 1, maxHeight: 10 }}
+                textColor={colors.text}
+                cursorColor={colors.accent}
+                placeholderColor={colors.textFaint}
+                initialValue={configText}
+                placeholder={'{ "tools": [{ "type": "openrouter:web_search" }] }'}
+                focused
+                keyBindings={[
+                  { name: "return", action: "submit" },
+                  { name: "return", shift: true, action: "newline" },
+                ]}
+                onContentChange={() => {
+                  setConfigText(configRef.current?.plainText ?? "")
+                }}
+                onSubmit={() => {
+                  const text = configRef.current?.plainText ?? ""
+                  const result = validateModelConfig(text)
+                  if (!result.ok) {
+                    setConfigStatus({ msg: `✗ ${result.error}`, valid: false })
+                    return
+                  }
+                  onSetModelConfig(highlightIndex, result.value)
+                  setMode("list")
+                }}
+              />
+            </box>
+            {/* Live lint status */}
+            {configStatus && (
+              <text fg={configStatus.valid ? colors.green : colors.yellow}>
+                {configStatus.msg}
+              </text>
+            )}
+          </box>
+        </ModalShell>
+      </Overlay>
+    )
+  }
+
   // ---- confirm delete ----
   if (mode === "confirm-delete") {
     const target = models[highlightIndex]?.name ?? "?"
@@ -577,6 +707,7 @@ export function ModelsModal({
     const descParts: string[] = [`${entry.provider} · ${entry.model}`]
     if (!hasKey && !provDef?.keyless) descParts.push("(no key — run /connect)")
     if (isDefault) descParts.push("★ default")
+    if (entry.config && Object.keys(entry.config).length > 0) descParts.push("⚙")
     return { name: entry.name, description: descParts.join("  "), value: entry.name }
   })
 
@@ -586,7 +717,7 @@ export function ModelsModal({
   const listHeight = Math.min(models.length, 6) * 2
   const searchText = searching ? `${query}▏` : query || "Type / to filter"
   const searchColor = query || searching ? colors.text : colors.textFaint
-  const listHint = "↑↓ navigate · enter select · / filter · a add · d delete · f default · r rename · esc cancel"
+  const listHint = "↑↓ navigate · enter select · / filter · a add · d delete · f default · r rename · c config · esc cancel"
   const searchHint = "type to filter · ↑↓ navigate · enter select · esc done"
   const hint = searching ? searchHint : listHint
   const hintWrapWidth = innerW + 2 // ModalShell width (innerW + 6) minus the hint box's 2+2 padding

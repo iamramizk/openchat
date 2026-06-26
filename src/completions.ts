@@ -68,7 +68,10 @@ export async function* streamCompletion(
   systemPrompt: string,
   signal?: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
+  // Merge extra params first so reserved streaming keys always win — even if a
+  // hand-edited config.yaml includes them, our values overwrite without breaking SSE.
   const body = {
+    ...(conn.extraParams ?? {}),
     model: conn.model,
     stream: true,
     messages: [{ role: "system", content: systemPrompt }, ...messages],

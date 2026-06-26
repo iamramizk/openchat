@@ -517,6 +517,21 @@ export function App({
     showToast(`✓ Renamed "${old}" → "${newName}"`)
   }
 
+  function handleSetModelConfig(index: number, config?: Record<string, unknown>) {
+    const name = cfg.models[index]?.name ?? "?"
+    const nextModels = cfg.models.map((m, i) => {
+      if (i !== index) return m
+      // Strip config entirely when clearing (undefined) — don't persist an empty key
+      if (!config || Object.keys(config).length === 0) {
+        const { config: _removed, ...rest } = m
+        return rest
+      }
+      return { ...m, config }
+    })
+    persistConfig({ ...cfg, models: nextModels })
+    showToast(`✓ Config updated for "${name}"`)
+  }
+
   // -------------------------------------------------------------------------
   // Determine active model name for status bar
   // -------------------------------------------------------------------------
@@ -602,6 +617,7 @@ export function App({
           onDeleteModel={handleDeleteModel}
           onSetDefault={handleSetDefault}
           onRenameModel={handleRenameModel}
+          onSetModelConfig={handleSetModelConfig}
           onClose={() => setModal(null)}
         />
       )}

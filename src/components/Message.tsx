@@ -1,7 +1,9 @@
 import type { SyntaxStyle, TreeSitterClient } from "@opentui/core"
+import { t, link, fg } from "@opentui/core"
 import { colors } from "../theme.ts"
 import type { ChatMessage } from "../types.ts"
 import { ThinkingIndicator } from "./ThinkingIndicator.tsx"
+import { normalizeCitations, extractSources } from "../markdown.ts"
 
 interface Props {
   msg: ChatMessage
@@ -33,6 +35,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
   const isUser = msg.role === "user"
   const roleLabel = isUser ? "you" : "assistant"
   const roleColor = isUser ? colors.accent : colors.green
+  const sources = isUser ? [] : extractSources(msg.content)
 
   return (
     <box
@@ -61,7 +64,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
       ) : (
         <>
           <markdown
-            content={msg.content || " "}
+            content={normalizeCitations(msg.content) || " "}
             syntaxStyle={syntaxStyle}
             treeSitterClient={treeSitterClient}
             streaming={msg.isStreaming}
@@ -72,6 +75,24 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
             <text fg={colors.textFaint} style={msg.content ? { marginTop: 1 } : undefined}>
               ⏹ stopped
             </text>
+          )}
+          {!msg.isStreaming && sources.length > 0 && (
+            <box
+              style={{
+                flexDirection: "column",
+                marginTop: msg.stopped ? 0 : 1,
+              }}
+            >
+              <text fg={colors.textFaint}>
+                {`↗ ${sources.length} source${sources.length === 1 ? "" : "s"}`}
+              </text>
+              {sources.map((s, i) => (
+                <text
+                  key={i}
+                  content={t`  ${fg(colors.textFaint)(`[${s.label}] `)}${link(s.url)(fg(colors.accent)(s.url))}`}
+                />
+              ))}
+            </box>
           )}
         </>
       )}

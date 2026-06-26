@@ -7,6 +7,8 @@ export interface ModelEntry {
   provider: string        // must match a provider in auth.json
   model: string           // model id sent to the API
   context_length?: number // optional override when provider /models lacks it
+  /** Extra parameters merged into the root of every chat-completions request for this model. */
+  config?: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------
@@ -37,6 +39,8 @@ export interface ActiveConnection {
   api_key: string
   model: string
   contextLengthOverride?: number  // from ModelEntry.context_length
+  /** Extra params from ModelEntry.config — merged into the root request body. */
+  extraParams?: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------

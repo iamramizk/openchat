@@ -40,6 +40,15 @@ export function loadConfig(): Config {
       if (m.context_length !== undefined) {
         entry.context_length = Number(m.context_length)
       }
+      // Preserve native-typed config block (yaml.parse already yields correct JS types)
+      if (
+        m.config !== undefined &&
+        m.config !== null &&
+        typeof m.config === "object" &&
+        !Array.isArray(m.config)
+      ) {
+        entry.config = m.config as Record<string, unknown>
+      }
       acc.push(entry)
       return acc
     }, [])
@@ -93,6 +102,10 @@ export function saveConfig(config: Config): void {
         model: m.model,
       }
       if (m.context_length !== undefined) entry.context_length = m.context_length
+      // Persist as a native nested YAML block (not stringified JSON)
+      if (m.config !== undefined && Object.keys(m.config).length > 0) {
+        entry.config = m.config
+      }
       return entry
     }),
     default_persona,
@@ -141,5 +154,6 @@ export function resolveConnection(
     api_key: creds?.api_key ?? "",
     model: entry.model,
     contextLengthOverride: entry.context_length,
+    extraParams: entry.config,
   }
 }

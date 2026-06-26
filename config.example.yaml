@@ -9,9 +9,12 @@ models:
   - name: deepseek-v4-flash
     provider: openrouter
     model: deepseek/deepseek-v4-flash:nitro
-  - name: deepseek-v4-pro
+  - name: grok-4.2 (online)
     provider: openrouter
-    model: deepseek/deepseek-v4-pro:nitro
+    model: x-ai/grok-4.20
+    config:
+      tools:
+        - type: openrouter:web_search
   - name: llama-3.3-70b
     provider: groq
     model: llama-3.3-70b-versatile
