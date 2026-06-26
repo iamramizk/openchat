@@ -42,6 +42,15 @@ function countWrappedLines(text: string, width: number): number {
 // /models modal — list, add (a), delete (d), set-default (f), select (enter)
 // ---------------------------------------------------------------------------
 
+/** Pretty-printed placeholder shown when the model config editor is empty. */
+const CONFIG_PLACEHOLDER = `{
+  "tools": [
+    {
+      "type": "openrouter:web_search"
+    }
+  ]
+}`
+
 interface ModelsModalProps {
   models: ModelEntry[]
   auth: AuthStore
@@ -94,8 +103,8 @@ export function ModelsModal({
   const [query, setQuery] = useState("")
   const [searching, setSearching] = useState(false)
 
-  const modelIdRef = useRef<{ plainText?: string } | null>(null)
-  const nameRef = useRef<{ plainText?: string } | null>(null)
+  const modelIdRef = useRef<TextareaRenderable | null>(null)
+  const nameRef = useRef<TextareaRenderable | null>(null)
   const configRef = useRef<TextareaRenderable | null>(null)
   const [configText, setConfigText] = useState("")
   const [configStatus, setConfigStatus] = useState<{ msg: string; valid: boolean } | null>(null)
@@ -126,6 +135,21 @@ export function ModelsModal({
   }, [configText, mode])
 
   useKeyboard((key) => {
+    // Right arrow on an empty input fills the placeholder text (shell-style autosuggest)
+    if (key.name === "right") {
+      let ta: TextareaRenderable | null = null
+      let placeholder = ""
+      if (mode === "add-model") { ta = modelIdRef.current; placeholder = "provider/model-id" }
+      else if (mode === "add-name") { ta = nameRef.current; placeholder = pendingModelId }
+      else if (mode === "rename") { ta = nameRef.current; placeholder = models[highlightIndex]?.name ?? "" }
+      else if (mode === "config") { ta = configRef.current; placeholder = CONFIG_PLACEHOLDER }
+      if (ta && (ta.plainText ?? "") === "") {
+        key.preventDefault()
+        ta.insertText(placeholder)
+        return
+      }
+    }
+
     if (mode === "list") {
       if (searching) {
         if (key.name === "escape") { setSearching(false); return }
@@ -638,13 +662,13 @@ export function ModelsModal({
                 key={`config-${modelName}`}
                 ref={configRef as React.Ref<any>}
                 wrapMode="word"
-                height="auto"
-                style={{ flexGrow: 1, maxHeight: 10 }}
+                height={8}
+                style={{ flexGrow: 1 }}
                 textColor={colors.text}
                 cursorColor={colors.accent}
                 placeholderColor={colors.textFaint}
                 initialValue={configText}
-                placeholder={'{ "tools": [{ "type": "openrouter:web_search" }] }'}
+                placeholder={CONFIG_PLACEHOLDER}
                 focused
                 keyBindings={[
                   { name: "return", action: "submit" },
@@ -822,15 +846,37 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [pendingName, setPendingName] = useState("")
   const [pendingUrl, setPendingUrl] = useState("")
-  const inputRef = useRef<{ plainText?: string } | null>(null)
-  const nameRef = useRef<{ plainText?: string } | null>(null)
-  const urlRef = useRef<{ plainText?: string } | null>(null)
-  const keyRef = useRef<{ plainText?: string } | null>(null)
+  const inputRef = useRef<TextareaRenderable | null>(null)
+  const nameRef = useRef<TextareaRenderable | null>(null)
+  const urlRef = useRef<TextareaRenderable | null>(null)
+  const keyRef = useRef<TextareaRenderable | null>(null)
 
   const providerList = effectiveProviderList(auth)
   const highlighted = providerList[highlightIndex]
+  // Computed once here so the keyboard handler can access them without recalculating
+  const connectProviders = effectiveProviders(auth)
+  const connectIsKeyless = connectProviders[selectedProvider]?.keyless ?? false
+  const connectDefaultUrl = connectProviders[selectedProvider]?.base_url ?? "http://localhost:11434/v1"
 
   useKeyboard((key) => {
+    // Right arrow on an empty input fills the placeholder text (shell-style autosuggest)
+    if (key.name === "right") {
+      let ta: TextareaRenderable | null = null
+      let placeholder = ""
+      if (step === "add-name") { ta = nameRef.current; placeholder = "My local server" }
+      else if (step === "add-url") { ta = urlRef.current; placeholder = "http://localhost:11434/v1" }
+      else if (step === "add-key") { ta = keyRef.current; placeholder = "sk-... (optional)" }
+      else if (step === "key") {
+        ta = inputRef.current
+        placeholder = connectIsKeyless ? connectDefaultUrl : "sk-..."
+      }
+      if (ta && (ta.plainText ?? "") === "") {
+        key.preventDefault()
+        ta.insertText(placeholder)
+        return
+      }
+    }
+
     if (step === "pick") {
       if (key.name === "escape") { onClose(); return }
       if (key.name === "a") { setPendingName(""); setPendingUrl(""); setStep("add-name"); return }
@@ -1052,12 +1098,11 @@ export function ConnectModal({ auth, bgColor, onSave, onAddCustom, onDeleteProvi
   }
 
   // Step 2: key entry (keyed providers) or base-URL editor (keyless providers)
-  const providers = effectiveProviders(auth)
   const providerLabel = providerList.find((p) => p.id === selectedProvider)?.label ?? selectedProvider
-  const isKeyless = providers[selectedProvider]?.keyless ?? false
+  const isKeyless = connectIsKeyless
+  const defaultUrl = connectDefaultUrl
 
   if (isKeyless) {
-    const defaultUrl = providers[selectedProvider]?.base_url ?? "http://localhost:11434/v1"
     const savedUrl = auth.providers[selectedProvider]?.base_url ?? defaultUrl
 
     return (

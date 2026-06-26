@@ -9,11 +9,13 @@ interface Props {
   promptColor: string
   /** Border title shown when piped stdin content is attached, e.g. "◆ piped input · 1.2k chars" */
   pipedTitle?: string
+  /** Show a ⚙ marker on the right of the border when the active model has a custom config */
+  hasConfig?: boolean
   onContentChange: (text: string) => void
   onSubmit: () => void
 }
 
-export function InputBar({ isStreaming, inputKey, promptChar, promptColor, pipedTitle, onContentChange, onSubmit }: Props) {
+export function InputBar({ isStreaming, inputKey, promptChar, promptColor, pipedTitle, hasConfig, onContentChange, onSubmit }: Props) {
   const textareaRef = useRef<TextareaRenderable>(null)
 
   const placeholder = isStreaming
@@ -21,13 +23,19 @@ export function InputBar({ isStreaming, inputKey, promptChar, promptColor, piped
     : "message  ⏎ send · shift+⏎ newline"
   const borderColor = isStreaming ? colors.textFaint : colors.border
 
+  // Compose right-side border title: piped info and/or config marker
+  const titleParts: string[] = []
+  if (pipedTitle) titleParts.push(pipedTitle.trim())
+  if (hasConfig) titleParts.push("⚙")
+  const title = titleParts.length ? ` ${titleParts.join("  ")} ` : undefined
+
   function handleContentChange() {
     onContentChange(textareaRef.current?.plainText ?? "")
   }
 
   return (
     <box
-      title={pipedTitle}
+      title={title}
       titleColor={colors.textMuted}
       titleAlignment="right"
       style={{

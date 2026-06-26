@@ -537,6 +537,8 @@ export function App({
   // -------------------------------------------------------------------------
 
   const activeModelEntry = cfg.models[activeModelIndex] ?? null
+  const hasModelConfig =
+    !!activeModelEntry?.config && Object.keys(activeModelEntry.config).length > 0
 
   // -------------------------------------------------------------------------
   // Slash-command suggestions
@@ -579,6 +581,7 @@ export function App({
         promptChar={cfg.prompt_char}
         promptColor={cfg.prompt_color}
         pipedTitle={pipedTitle}
+        hasConfig={hasModelConfig}
         onContentChange={(v) => { pendingInputRef.current = v; setInputValue(v) }}
         onSubmit={handleSubmit}
       />

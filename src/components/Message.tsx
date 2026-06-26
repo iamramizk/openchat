@@ -89,7 +89,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
               {sources.map((s, i) => (
                 <text
                   key={i}
-                  content={t`  ${fg(colors.textFaint)(`[${s.label}] `)}${link(s.url)(fg(colors.accent)(s.url))}`}
+                  content={t`  ${fg(colors.textFaint)(`[${s.label}] `)}${link(s.url)(fg(colors.textFaint)(s.url))}`}
                 />
               ))}
             </box>
