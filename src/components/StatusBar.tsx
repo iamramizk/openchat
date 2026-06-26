@@ -13,6 +13,8 @@ interface Props {
   stats: SessionStats
   modelInfo: ModelInfo | null
   isStreaming: boolean
+  /** True while streaming but no content or reasoning has arrived yet (pre-token "working" gap). */
+  isWorking: boolean
 }
 
 function formatCost(cost: number, compact: boolean): string {
@@ -84,12 +86,13 @@ export function StatusBar({
   stats,
   modelInfo: _modelInfo,
   isStreaming,
+  isWorking,
 }: Props) {
   const { width } = useTerminalDimensions()
   const personaTitle = persona.charAt(0).toUpperCase() + persona.slice(1)
   const statusDot = isStreaming ? "●" : "○"
-  const statusLabel = isStreaming ? "streaming" : "ready"
-  const statusColor = isStreaming ? colors.greenBright : colors.textFaint
+  const statusLabel = isStreaming ? (isWorking ? "working" : "streaming") : "ready"
+  const statusColor = isStreaming ? (isWorking ? colors.yellow : colors.greenBright) : colors.textFaint
 
   // Responsive right side: as the terminal narrows, progressively compact the
   // status/ctx/cost/hint cluster (see LEVELS below) rather than letting it overlap

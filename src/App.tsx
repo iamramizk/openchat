@@ -540,6 +540,12 @@ export function App({
   const hasModelConfig =
     !!activeModelEntry?.config && Object.keys(activeModelEntry.config).length > 0
 
+  // True while streaming but before any content or reasoning has arrived (web-search
+  // tool calls, cold Ollama loads). Matches the WorkingIndicator condition in Message.tsx.
+  const lastMsg = messages[messages.length - 1]
+  const isWorking =
+    isStreaming && lastMsg?.role === "assistant" && lastMsg.content === "" && !lastMsg.isThinking
+
   // -------------------------------------------------------------------------
   // Slash-command suggestions
   // Show when the input starts with / (no spaces), no modal is open, not streaming
@@ -596,6 +602,7 @@ export function App({
         stats={stats}
         modelInfo={modelInfo}
         isStreaming={isStreaming}
+        isWorking={isWorking}
       />
 
       {/* Slash-command suggestions (above input bar) */}
