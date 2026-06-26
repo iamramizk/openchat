@@ -15,6 +15,9 @@ const PREVIEW_MAX_LINES = 5
 // re-wrap on every update to keep this cheap even for long-winded models.
 const PREVIEW_TAIL_CHARS = 2000
 
+/** Delay before the "Working on it..." indicator becomes visible. */
+const WORKING_DELAY_MS = 500
+
 /** Word-wrap `text` to `width` columns and return the last `maxLines` wrapped lines. */
 function tailWrap(text: string, width: number, maxLines: number): string[] {
   if (width <= 0) return []
@@ -42,21 +45,24 @@ function tailWrap(text: string, width: number, maxLines: number): string[] {
   return lines.slice(-maxLines)
 }
 
+/** Shared animated braille spinner — advances every FRAME_MS ms. */
+function useSpinnerFrame(): string {
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % FRAMES.length), FRAME_MS)
+    return () => clearInterval(id)
+  }, [])
+  return FRAMES[frame]
+}
+
 interface Props {
   /** Accumulated reasoning/thinking text streamed so far. */
   reasoning?: string
 }
 
 export function ThinkingIndicator({ reasoning }: Props) {
-  const [frame, setFrame] = useState(0)
+  const spinner = useSpinnerFrame()
   const { width } = useTerminalDimensions()
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setFrame((f) => (f + 1) % FRAMES.length)
-    }, FRAME_MS)
-    return () => clearInterval(id)
-  }, [])
 
   // Matches Message.tsx's paddingLeft + paddingRight (2 + 2).
   const previewWidth = width - 4
@@ -65,7 +71,7 @@ export function ThinkingIndicator({ reasoning }: Props) {
   return (
     <box style={{ flexDirection: "column", marginBottom: 1 }}>
       <text fg={colors.textFaint}>
-        {FRAMES[frame]} Thinking
+        {spinner} Thinking
       </text>
       {previewLines.length > 0 && (
         <>
@@ -79,6 +85,29 @@ export function ThinkingIndicator({ reasoning }: Props) {
           </box>
         </>
       )}
+    </box>
+  )
+}
+
+/**
+ * Shown while waiting for the first token (content or reasoning) after sending a
+ * message. Appears after a short delay so fast models never flash it. Looks like
+ * the ThinkingIndicator but without a reasoning preview.
+ */
+export function WorkingIndicator() {
+  const [visible, setVisible] = useState(false)
+  const spinner = useSpinnerFrame()
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), WORKING_DELAY_MS)
+    return () => clearTimeout(id)
+  }, [])
+
+  if (!visible) return null
+
+  return (
+    <box style={{ flexDirection: "column", marginBottom: 1 }}>
+      <text fg={colors.textFaint}>{spinner} Working on it...</text>
     </box>
   )
 }

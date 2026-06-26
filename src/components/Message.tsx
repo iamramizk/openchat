@@ -2,7 +2,7 @@ import type { SyntaxStyle, TreeSitterClient } from "@opentui/core"
 import { t, link, fg } from "@opentui/core"
 import { colors } from "../theme.ts"
 import type { ChatMessage } from "../types.ts"
-import { ThinkingIndicator } from "./ThinkingIndicator.tsx"
+import { ThinkingIndicator, WorkingIndicator } from "./ThinkingIndicator.tsx"
 import { normalizeCitations, extractSources } from "../markdown.ts"
 
 interface Props {
@@ -55,6 +55,11 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
 
       {/* Thinking indicator — shown while reasoning tokens arrive, before answer text */}
       {!isUser && msg.isThinking && <ThinkingIndicator reasoning={msg.reasoning} />}
+
+      {/* Working indicator — shown while waiting for the first token (no content or reasoning yet) */}
+      {!isUser && msg.isStreaming && !msg.isThinking && msg.content === "" && !msg.stopped && (
+        <WorkingIndicator />
+      )}
 
       {/* Message content */}
       {isUser ? (
