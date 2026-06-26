@@ -24,6 +24,7 @@ import type { CommandDef } from "./components/CommandSuggestions.tsx"
 const COMMANDS: CommandDef[] = [
   { name: "/models",  description: "switch model" },
   { name: "/connect", description: "add provider credentials" },
+  { name: "/config",  description: "edit current model's config" },
   { name: "/reset",   description: "clear conversation, keep persona & model" },
   { name: "/copy",    description: "copy last assistant response to clipboard" },
 ]
@@ -135,8 +136,8 @@ export function App({
   const [activeModelIndex, setActiveModelIndex] = useState(cfg.defaultModelIndex)
   const [auth, setAuth] = useState<AuthStore>(initialAuth)
 
-  // Modal state: null = no modal, "models" | "connect"
-  const [modal, setModal] = useState<"models" | "connect" | null>(null)
+  // Modal state: null = no modal, "models" | "connect" | "config"
+  const [modal, setModal] = useState<"models" | "connect" | "config" | null>(null)
 
   // Tracks live input value for slash-command suggestions
   const [inputValue, setInputValue] = useState("")
@@ -426,6 +427,12 @@ export function App({
         setModal("models")
       } else if (resolved?.name === "/connect") {
         setModal("connect")
+      } else if (resolved?.name === "/config") {
+        if (!cfg.models.length) {
+          showToast("No model configured — add one with /models")
+        } else {
+          setModal("config")
+        }
       } else if (resolved?.name === "/reset") {
         handleReset()
       } else if (resolved?.name === "/copy") {
@@ -627,7 +634,7 @@ export function App({
       {toastMsg && <CommandToast message={toastMsg} />}
 
       {/* Modals */}
-      {modal === "models" && (
+      {(modal === "models" || modal === "config") && (
         <ModelsModal
           models={cfg.models}
           auth={auth}
@@ -640,6 +647,7 @@ export function App({
           onSetDefault={handleSetDefault}
           onRenameModel={handleRenameModel}
           onSetModelConfig={handleSetModelConfig}
+          initialMode={modal === "config" ? "config" : undefined}
           onClose={() => setModal(null)}
         />
       )}

@@ -64,6 +64,9 @@ interface ModelsModalProps {
   onRenameModel: (index: number, newName: string) => void
   onSetModelConfig: (index: number, config?: Record<string, unknown>) => void
   onClose: () => void
+  /** When set, the modal opens directly in this mode instead of the default list view.
+   *  Currently only "config" is supported (opens the config editor for the active model). */
+  initialMode?: ModelsMode
 }
 
 type ModelsMode =
@@ -89,11 +92,12 @@ export function ModelsModal({
   onRenameModel,
   onSetModelConfig,
   onClose,
+  initialMode,
 }: ModelsModalProps) {
   const { width } = useTerminalDimensions()
   const innerW = Math.min(64, Math.max(40, width - 4))
 
-  const [mode, setMode] = useState<ModelsMode>("list")
+  const [mode, setMode] = useState<ModelsMode>(initialMode ?? "list")
   const [highlightIndex, setHighlightIndex] = useState(activeModelIndex)
   const [pendingProvider, setPendingProvider] = useState("")
   const [pendingModelId, setPendingModelId] = useState("")
@@ -106,7 +110,12 @@ export function ModelsModal({
   const modelIdRef = useRef<TextareaRenderable | null>(null)
   const nameRef = useRef<TextareaRenderable | null>(null)
   const configRef = useRef<TextareaRenderable | null>(null)
-  const [configText, setConfigText] = useState("")
+  const [configText, setConfigText] = useState(
+    // When opened directly in config mode, pre-fill with the active model's existing config
+    initialMode === "config" && models[activeModelIndex]?.config
+      ? JSON.stringify(models[activeModelIndex]!.config, null, 2)
+      : "",
+  )
   const [configStatus, setConfigStatus] = useState<{ msg: string; valid: boolean } | null>(null)
 
   // "list" mode shows a filtered view of `models`; highlightIndex indexes into `filtered`
