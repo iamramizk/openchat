@@ -81,6 +81,8 @@ Tools like **opencode** and **Claude Code** are excellent — but they inject ma
 - 📋 **Auto-copy on select** — mouse-drag selection copies text to the clipboard automatically (OSC 52, with `pbcopy` / `wl-copy` / `xclip` fallbacks)
 - ⌨️ **Slash commands & shortcuts** — `/models` or `Ctrl+P` to switch models; `/connect` to manage API keys; autosuggestion popup appears as you type `/`
 - 🎨 **Themeable** — status bar colours, prompt character, and accent colours all configurable in `config.yaml`
+- 🔧 **Per-model config** — attach extra request params to a model (e.g. enable server-side web search via `openrouter:web_search`) using `/config`; stored in `config.yaml` and merged into every request for that model
+- 🔗 **Source citations** — when a model returns web-search citations, a `↗ N sources` footer appears under the reply with clickable links
 - 📥 **Pipe input** — feed command or file output straight into a chat: `cat error.log | openchat`. The content attaches to your first message (shown trimmed in the chat, sent in full to the model) — just type your question and send
 - 🗒️ **No saved history** — conversations are transient and live only in memory; nothing is written to disk, so each launch is a clean slate
 - 🔒 **Non-destructive by design** — pure chat interface; no file access, no shell execution, no agentic tools; safe to run anywhere
@@ -205,7 +207,8 @@ them against the latest bundled defaults, but only overwrites files you haven't 
 | Command | Action |
 |---------|--------|
 | `/connect` | Opens a two-step modal: pick a provider → enter your API key. For **Ollama** (keyless), step two shows a base-URL editor instead of a key prompt (default `http://localhost:11434/v1`). Already-saved keys show `✓ key saved`; keyless providers show `✓ no key needed`. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank for local servers); `d` — delete a custom provider (confirm), shown with a `· custom` marker; built-in providers can't be deleted. Saves to `auth.json` immediately. |
-| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
+| `/models` | Lists all models from `config.yaml`. `Enter` — switch active model · `a` — add new model · `d` — delete · `f` — set as default (★) · `r` — rename · `c` — edit model config. For **Ollama**, adding a model shows a live pick-list of your installed models instead of a text field. |
+| `/config` | Edit the active model's request config as JSON. Extra params are merged into every request for that model — useful for enabling server-side tools like OpenRouter web search. Live-validated; empty input clears the config. |
 | `/reset` | Clears the conversation and session token/cost counters, keeping your active persona, model, and credentials — a fresh session without restarting. |
 | `/copy` | Copies the last assistant response to the clipboard. |
 
@@ -244,6 +247,12 @@ models:
   - name: gpt-oss-20b
     provider: openrouter
     model: "openai/gpt-oss-20b"
+  - name: grok-4.2 (online)
+    provider: openrouter
+    model: "x-ai/grok-4.20"
+    config:                         # extra params merged into every request for this model
+      tools:
+        - type: openrouter:web_search
   - name: llama-3.3-70b
     provider: groq
     model: "llama-3.3-70b-versatile"
@@ -263,6 +272,8 @@ colors:
 prompt_char: ">"
 prompt_color: "#58A6FF"
 ```
+
+The optional `config:` block accepts any JSON-serialisable object; its keys are merged into the root of every chat-completions request for that model. Reserved keys (`model`, `messages`, `stream`, `stream_options`) are always overwritten by openchat's own values. Edit via `/config` in the TUI — it opens a JSON editor with a live validator and a pre-filled `openrouter:web_search` placeholder you can accept with `→`.
 
 API keys are stored separately in `~/.local/share/openchat/auth.json` — managed automatically by `/connect`, never edit manually.
 

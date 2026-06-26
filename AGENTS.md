@@ -48,7 +48,7 @@ bun run build:linux-arm64  # dist/openchat-linux-arm64
 
 | Path | Purpose |
 |---|---|
-| `~/.config/openchat/config.yaml` | Models list, colours, default persona, prompt char — see `config.example.yaml` for shape, `types.ts` (`Config`/`ModelEntry`) for the parsed form |
+| `~/.config/openchat/config.yaml` | Models list, colours, default persona, prompt char, per-model `config` extra-params block — see `config.example.yaml` for shape, `types.ts` (`Config`/`ModelEntry`) for the parsed form |
 | `~/.config/openchat/prompts/` | Persona prompt files, copied from repo `prompts/` once on first run — editing the repo copy has no effect on existing installs until `openchat update` runs `reconcile-prompts` (see below) |
 | `~/.local/share/openchat/auth.json` | Per-provider credentials (`0600`) — see `auth.ts` (`ProviderCredential`) for the shape |
 
@@ -64,6 +64,8 @@ source.
 
 **Ollama zero-config:** with no `auth.json` entry at all, `resolveConnection` falls back to
 `PROVIDERS.ollama.base_url`.
+
+**Per-model config (`config:` in `config.yaml`):** each model entry may carry an arbitrary JSON-object block of extra params (e.g. `tools` for server-side web search). `config.ts` parses it natively, exposes it as `ActiveConnection.extraParams`, and `streamCompletion` (`completions.ts`) spreads it into the request body *before* the reserved keys (`model`, `messages`, `stream`, `stream_options`) so hand-edited values can never break SSE. `model-config.ts` exports `validateModelConfig` (shared by the live editor lint and save path) and `RESERVED_KEYS`. Edit via `/config` or `c` in `/models`.
 
 **Prompt reconciliation (`openchat reconcile-prompts`):** `scripts/update.sh` runs this
 subcommand interactively right after swapping in the new binary, to sync bundled persona
@@ -120,8 +122,7 @@ default, or leave it and drop the new default in `prompts/new/` for manual revie
   `ChatMessage.isThinking` is true. `ThinkingIndicator.tsx` shows a `⠋ Thinking` braille spinner
   plus a live, word-wrapped 3-line tail of `ChatMessage.reasoning` (`tailWrap()`, capped to the
   last 2000 chars). Both disappear on the first answer token.
-- **Slash commands:** `/models`, `/connect` open modals; any other `/x` shows an error toast; `/`
-  or a partial prefix (`/mod`, `/con`) shows the autosuggestion popup, prefix+Enter opens the modal.
+- **Slash commands:** `/models`, `/connect`, `/config` open modals; `/reset` clears the conversation; `/copy` copies the last assistant reply; any other `/x` shows an error toast; `/` or a partial prefix shows the autosuggestion popup, prefix+Enter opens the modal.
 - **Ctrl+P:** opens `/models` from anywhere — avoids Ctrl+M's collision with `\r` in non-kitty terminals.
 - **Context/cost tracking:** accumulated from `usage.total_tokens` / `usage.cost` per turn.
   Context denominator accepts `context_length` (OpenRouter) or `context_window` (Groq), or the
@@ -138,20 +139,25 @@ default, or leave it and drop the new default in `prompts/new/` for manual revie
   `createRoot(...).render(...)` so first paint isn't blocked; failures are caught and only
   disable syntax highlighting. `ensureWorker()` skips rewriting the on-disk worker files
   (`writeIfStale()`) when their size already matches.
+- **Source citations:** `markdown.ts` `mergeSources()` combines inline citation markdown (`extractSources` — `[1](url)` / `[[1]](url)` / `[1]: url` forms) with structured `url_citation` annotations from the stream to render a `↗ N sources` footer under assistant replies. `normalizeCitations()` rewrites inline citation links to bare `[1]` markers at display time — `msg.content` is never mutated so history replay and `/copy` are unaffected.
+- **Working indicator / status:** `WorkingIndicator` (500 ms delay, shared `useSpinnerFrame` hook) appears while streaming before any content or reasoning arrives. Status bar shows yellow `working` during this gap, then green `streaming` once tokens flow (`isWorking` prop).
 
 ## In-TUI Commands
 
 | Command | Action |
 |---|---|
 | `/connect` | Pick a provider → enter API key, or base-URL editor for keyless providers. `a` — add a custom OpenAI-compatible provider (name → base URL → API key, key may be left blank); `d` — delete a custom provider (confirm `d`/`y`; built-ins can't be deleted). Saves to `auth.json` immediately. |
-| `/models` | List `models[]` from `config.yaml`. `↑↓` navigate (wraps top↔bottom via `wrapSelection`) · `enter` switch · `/` type-to-filter (matches name/provider/model id live; ↑↓ and enter still work while filtering; `esc` steps out of filter mode → clears the query → closes the modal) · `a` add (provider → model-id → name; Ollama gets a live install pick-list, every other provider — including custom ones — uses manual id entry) · `d` delete (confirm) · `f` set default (★) · `r` rename. Writes `config.yaml` immediately. Shortcut hints render at the bottom of the modal. |
+| `/models` | List `models[]` from `config.yaml`. `↑↓` navigate (wraps top↔bottom via `wrapSelection`) · `enter` switch · `/` type-to-filter (matches name/provider/model id live; ↑↓ and enter still work while filtering; `esc` steps out of filter mode → clears the query → closes the modal) · `a` add (provider → model-id → name; Ollama gets a live install pick-list, every other provider — including custom ones — uses manual id entry) · `d` delete (confirm) · `f` set default (★) · `r` rename · `c` open config editor. Models with a saved config show a `⚙` marker. Writes `config.yaml` immediately. Shortcut hints render at the bottom of the modal. |
+| `/config` | Open the JSON config editor for the active model. Extra params are merged into the root of every request for that model. `→` on an empty editor fills the `openrouter:web_search` placeholder. Live JSON lint; `enter` saves, empty input clears the config, `esc` cancels. Also accessible via `c` in `/models`. |
+| `/reset` | Clear the conversation and session token/cost counters, keeping the active model, persona, and credentials. |
+| `/copy` | Copy the last assistant response to the clipboard. |
 
 ## Source Layout
 
 ```
 src/
   index.tsx             # entry: bootstrap, piped-stdin pre-renderer drain + /dev/tty reopen, load config/auth/personas, createRoot + <App>; tree-sitter init deferred past first paint
-  config.ts             # loadConfig() (XDG), saveConfig(), resolveConnection() — keyless from PROVIDERS or creds
+  config.ts             # loadConfig() (XDG), saveConfig(), resolveConnection() — keyless from PROVIDERS or creds; loads/saves per-model config block as extraParams
   auth.ts               # loadAuth/saveAuth, setProviderKey/setProviderBaseUrl (preserve existing fields), setCustomProvider/removeProvider
   paths.ts              # XDG path helpers + ensureDirectories() + ensureWorker() (writeIfStale — skips rewrite if unchanged)
   bundled-assets.ts     # seed content + pre-built worker JS, embedded via `with { type: "text" }` (safe in compiled binary — see LEARNINGS.md)
@@ -160,23 +166,25 @@ src/
   personas.ts           # loadPersonas() + composeSystemPrompt()
   prompt-hashes.ts      # GENERATED (bun run build:prompt-hashes) — PROMPT_HASH_HISTORY, normalizePrompt/hashPrompt
   prompt-sync.ts        # reconcilePrompts() — classifies disk prompts vs bundled defaults, drives backup/new flow
-  completions.ts        # fetchModelInfo(conn), streamCompletion(conn, messages, systemPrompt, signal), fetchInstalledModels(baseUrl, apiKey)
-  types.ts              # ModelEntry, Config, ActiveConnection, Persona, ChatMessage (isThinking/reasoning/displayContent), ModelInfo, SessionStats, StreamChunk
+  completions.ts        # fetchModelInfo(conn), streamCompletion(conn, messages, systemPrompt, signal), fetchInstalledModels(baseUrl, apiKey); merges extraParams (reserved keys always win); extracts url_citation annotations as StreamChunk.citations
+  types.ts              # ModelEntry (config?), Config, ActiveConnection (extraParams?), Persona, Citation, ChatMessage (isThinking/reasoning/displayContent/citations), ModelInfo, SessionStats, StreamChunk (citations?)
   theme.ts              # color palette + SyntaxStyle for <markdown>
   parsers.ts            # EXTRA_PARSERS for addDefaultParsers()
+  model-config.ts       # validateModelConfig() + RESERVED_KEYS — shared by the /config editor (live lint) and its save path
+  markdown.ts           # normalizeCitations() (strip URLs from citation links at display time), extractSources(), mergeSources() (merges inline + structured annotations)
   bun-worker-shim.ts    # Bun worker compat shim (polyfills globalThis.close, imports @opentui/core/parser.worker)
   worker/               # pre-built worker sidecar (committed; regenerate with `bun run build:worker`)
     bun-worker-shim.js
     tree-sitter.wasm
-  App.tsx               # root: state, command dispatch, modal state, connection resolution, abortControllerRef (Esc-to-stop), custom-provider/model add-delete-rename handlers
+  App.tsx               # root: state, command dispatch, modal state, connection resolution, abortControllerRef (Esc-to-stop), custom-provider/model add-delete-rename-config handlers; citation accumulation; isWorking derived state
   components/
     ChatPane.tsx        # <scrollbox> + message list
-    Message.tsx         # one turn; renders displayContent ?? content for user turns
-    InputBar.tsx        # <textarea> submit/clear; piped-input border title
-    StatusBar.tsx       # model · persona · status · ctx% · cost — responsive right side (progressive compaction by terminal width); no-model empty state ticks through helper hints (NoModelHint) when they don't all fit
+    Message.tsx         # one turn; renders displayContent ?? content for user turns; WorkingIndicator for pre-first-token state; normalizeCitations + mergeSources for source footer (↗ N sources)
+    InputBar.tsx        # <textarea> submit/clear; piped-input border title; ⚙ config marker when active model has config
+    StatusBar.tsx       # model · persona · status · ctx% · cost — responsive right side (progressive compaction by terminal width); no-model empty state ticks through helper hints (NoModelHint) when they don't all fit; yellow `working` / green `streaming` status
     Toast.tsx           # transient copy-confirmation overlay
-    ThinkingIndicator.tsx  # braille spinner + scrolling reasoning preview (tailWrap, 80ms frame interval)
-    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines; ModelsModal list view has /-triggered type-to-filter and wrap-around list nav; shared ModalShell renders a centered accent title + optional centered white subtitle (current step) + bottom faint keymap hint, and reserves fixed hint/list heights so the /models list doesn't jump when filtering
+    ThinkingIndicator.tsx  # ThinkingIndicator (braille spinner + reasoning preview, tailWrap, 80ms frame) + WorkingIndicator (pre-first-token, 500ms delay); shared useSpinnerFrame hook
+    CommandPalette.tsx  # ModelsModal + ConnectModal — multi-step add/delete state machines; ModelsModal adds config editor mode (`c` / `initialMode="config"`), live JSON lint via validateModelConfig, `→` placeholder fill; ModalShell renders a centered accent title + optional subtitle + bottom hint; → placeholder fill also in ConnectModal text inputs
     CommandSuggestions.tsx  # floating slash-command autosuggestion popup
 prompts/                # bundled seed — copied to ~/.config/openchat/prompts/ on first run
   _global.md, 0-default.md, 1-hacker.md, 2-developer.md, 3-writer.md
