@@ -52,6 +52,12 @@ export interface Persona {
   content: string
 }
 
+/** A structured citation returned by a web-search-enabled model via the annotations field. */
+export interface Citation {
+  url: string
+  title?: string
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "assistant"
@@ -66,6 +72,10 @@ export interface ChatMessage {
   displayContent?: string
   /** True when an assistant reply was cut short by Esc — renders a dim "⏹ stopped" marker. */
   stopped?: boolean
+  /** Structured citations from provider annotations (url_citation). Supplements any inline
+   *  markdown links in content — used to populate the source footer when a model doesn't
+   *  embed citations inline. Never sent to the model. */
+  citations?: Citation[]
 }
 
 export interface ModelInfo {
@@ -93,5 +103,7 @@ export interface StreamChunk {
     total_tokens: number
     cost?: number
   }
+  /** Structured citations extracted from provider annotations (url_citation). */
+  citations?: Citation[]
   done: boolean
 }

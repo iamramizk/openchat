@@ -348,6 +348,18 @@ export function App({
           )
         }
 
+        if (chunk.citations?.length) {
+          // Accumulate structured citations from provider annotations, deduped by URL.
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== assistantId) return m
+              const seen = new Set((m.citations ?? []).map((c) => c.url))
+              const added = chunk.citations!.filter((c) => !seen.has(c.url))
+              return added.length ? { ...m, citations: [...(m.citations ?? []), ...added] } : m
+            }),
+          )
+        }
+
         if (chunk.usage) {
           const usageData = chunk.usage
           setStats((prev) => ({

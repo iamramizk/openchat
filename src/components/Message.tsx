@@ -3,7 +3,7 @@ import { t, link, fg } from "@opentui/core"
 import { colors } from "../theme.ts"
 import type { ChatMessage } from "../types.ts"
 import { ThinkingIndicator, WorkingIndicator } from "./ThinkingIndicator.tsx"
-import { normalizeCitations, extractSources } from "../markdown.ts"
+import { normalizeCitations, mergeSources } from "../markdown.ts"
 
 interface Props {
   msg: ChatMessage
@@ -35,7 +35,7 @@ export function Message({ msg, syntaxStyle, treeSitterClient }: Props) {
   const isUser = msg.role === "user"
   const roleLabel = isUser ? "you" : "assistant"
   const roleColor = isUser ? colors.accent : colors.green
-  const sources = isUser ? [] : extractSources(msg.content)
+  const sources = isUser ? [] : mergeSources(msg.content, msg.citations)
 
   return (
     <box

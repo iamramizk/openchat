@@ -4,6 +4,8 @@
 // (which is replayed verbatim in conversation history and /copy).
 // ---------------------------------------------------------------------------
 
+import type { Citation } from "./types.ts"
+
 /**
  * Strip URLs from citation-style markdown links so they render as clean `[1]`
  * markers rather than leaking the URL as visible text.
@@ -69,5 +71,31 @@ export function extractSources(content: string): Source[] {
   for (const m of content.matchAll(/^\s*\[(\w+)\]:\s*(\S+)/gm))
     push(m[1], m[2])
 
+  return out
+}
+
+/**
+ * Merge inline-markdown sources with structured provider citations.
+ *
+ * Starts from `extractSources(content)` (inline `[1](url)` / `[[1]](url)` forms), then
+ * appends any structured citations from the annotations field that aren't already present
+ * (deduped by URL). New entries are numbered sequentially from the existing list length + 1.
+ *
+ * This ensures:
+ * - Models that embed citations inline (e.g. grok) are unchanged — their annotations, if any,
+ *   dedupe away against the already-present inline URLs.
+ * - Models that only return structured annotations (e.g. gemini) still get a numbered footer.
+ */
+export function mergeSources(content: string, citations?: Citation[]): Source[] {
+  const out = extractSources(content)
+  if (!citations?.length) return out
+
+  const seen = new Set(out.map((s) => s.url))
+  for (const c of citations) {
+    if (!seen.has(c.url)) {
+      seen.add(c.url)
+      out.push({ label: String(out.length + 1), url: c.url })
+    }
+  }
   return out
 }

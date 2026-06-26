@@ -122,6 +122,14 @@ export async function* streamCompletion(
         }
 
         try {
+          // Annotation shape for OpenAI-compatible web-search responses (OpenRouter, etc.):
+          //   { type: "url_citation", url_citation: { url, title, content?, start_index, end_index } }
+          // They appear on delta.annotations during streaming, and on message.annotations in the
+          // final non-streaming chunk some providers emit.
+          type RawAnnotation = {
+            type?: string
+            url_citation?: { url?: string; title?: string }
+          }
           const json = JSON.parse(data) as {
             choices?: Array<{
               delta?: {
@@ -133,7 +141,10 @@ export async function* streamCompletion(
                 reasoning?: string | null
                 reasoning_content?: string | null
                 thinking?: string | null
+                annotations?: RawAnnotation[]
               }
+              // Some providers attach annotations to a final message object rather than the delta
+              message?: { annotations?: RawAnnotation[] }
               finish_reason?: string | null
             }>
             usage?: {
@@ -149,8 +160,15 @@ export async function* streamCompletion(
           const reasoning = d?.reasoning ?? d?.reasoning_content ?? d?.thinking ?? ""
           const usage = json.usage
 
-          if (delta || reasoning || usage) {
-            yield { delta, reasoning: reasoning || undefined, usage, done: false }
+          // Collect structured citations from delta.annotations or fallback message.annotations
+          const rawAnnotations =
+            d?.annotations ?? json.choices?.[0]?.message?.annotations
+          const citations = rawAnnotations
+            ?.filter((a) => a.type === "url_citation" && a.url_citation?.url)
+            .map((a) => ({ url: a.url_citation!.url!, title: a.url_citation!.title }))
+
+          if (delta || reasoning || usage || citations?.length) {
+            yield { delta, reasoning: reasoning || undefined, usage, citations: citations?.length ? citations : undefined, done: false }
           }
         } catch {
           // skip malformed SSE lines
